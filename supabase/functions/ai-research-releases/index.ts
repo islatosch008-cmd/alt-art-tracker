@@ -20,9 +20,9 @@ import {
   ANTHROPIC_KEY_PRESENT,
   callMessages,
   computeCost,
+  extractJsonBlock,
   finalText,
   MODEL,
-  stripFences,
   WEB_SEARCH_TOOL,
 } from '../_shared/anthropic.ts';
 import { adminClient } from '../_shared/auth.ts';
@@ -387,7 +387,7 @@ Deno.serve(
     const cost = computeCost(response.usage);
 
     // Always log cost (success or degraded) so the next run's pre-flight is accurate.
-    const text = stripFences(finalText(response));
+    const text = extractJsonBlock(finalText(response));
 
     let parsed: unknown;
     try {

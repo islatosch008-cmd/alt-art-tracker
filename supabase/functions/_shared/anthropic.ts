@@ -116,6 +116,24 @@ export function stripFences(s: string): string {
     .trim();
 }
 
+// More aggressive JSON extractor for when Claude prefaces with narrative
+// ("Based on my research…") and then dumps the JSON in ```json fences.
+// Tries in order:
+//   1. text inside the FIRST ```json ... ``` fence pair
+//   2. text inside the FIRST ``` ... ``` fence pair
+//   3. substring from first { to last }  (brace-anchored fallback)
+//   4. raw trimmed string (caller will JSON.parse and probably fail loudly)
+export function extractJsonBlock(s: string): string {
+  const fenceJson = /```json\s*([\s\S]*?)\s*```/i.exec(s);
+  if (fenceJson) return fenceJson[1].trim();
+  const fenceAny = /```\s*([\s\S]*?)\s*```/.exec(s);
+  if (fenceAny) return fenceAny[1].trim();
+  const first = s.indexOf('{');
+  const last = s.lastIndexOf('}');
+  if (first >= 0 && last > first) return s.slice(first, last + 1);
+  return s.trim();
+}
+
 // Compute USD cost of a response. Includes input + output tokens, cache
 // hits/writes if reported, and web_search invocations.
 export function computeCost(usage: Usage): number {
