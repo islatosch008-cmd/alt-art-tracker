@@ -22,6 +22,8 @@ const MAPPING = {
   'flame.fill': 'whatshot',
   'calendar': 'event',
   'gearshape.fill': 'settings',
+  'magnifyingglass': 'search',
+  'xmark.circle.fill': 'cancel',
 } as IconMapping;
 
 /**
