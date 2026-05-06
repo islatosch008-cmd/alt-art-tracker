@@ -6,8 +6,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
 import {
   daysUntil,
@@ -29,29 +29,29 @@ export default function ReleasesScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <PageShell>
         {headerEl}
         <View style={styles.center}>
           <ActivityIndicator />
         </View>
-      </SafeAreaView>
+      </PageShell>
     );
   }
   if (error) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <PageShell>
         {headerEl}
         <View style={styles.center}>
           <Text style={styles.errorText}>{(error as Error).message}</Text>
         </View>
-      </SafeAreaView>
+      </PageShell>
     );
   }
 
   const sections = groupReleases(data ?? []);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <PageShell>
       <SectionList
         contentContainerStyle={styles.content}
         sections={sections}
@@ -85,7 +85,7 @@ export default function ReleasesScreen() {
           </Text>
         }
       />
-    </SafeAreaView>
+    </PageShell>
   );
 }
 
@@ -126,7 +126,6 @@ function ReleaseRow({ set }: { set: ReleaseSet }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
   content: { paddingBottom: 32 },
   center: {
     flex: 1,

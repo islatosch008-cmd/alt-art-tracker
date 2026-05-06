@@ -9,8 +9,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
 import { useAuth } from '@/lib/auth';
 import { confirmPhoneVerify, startPhoneVerify } from '@/lib/phone';
@@ -77,7 +77,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <PageShell>
       <ScreenHeader title="Settings" subtitle="Filters, alerts, account" />
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.card}>
@@ -180,12 +180,11 @@ export default function SettingsScreen() {
           <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </PageShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
   body: { padding: 24, paddingTop: 0, gap: 16, paddingBottom: 40 },
   card: {
     borderWidth: 1,

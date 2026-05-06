@@ -7,9 +7,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandChips } from '@/components/brand-chips';
+import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
 import { TrendingCardCell } from '@/components/trending-card-cell';
 import { useBrands } from '@/lib/use-brands';
@@ -23,7 +23,7 @@ export default function HeatingUpScreen() {
   const cols = useGridCols();
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <PageShell>
       <ScreenHeader
         title="Heating Up"
         subtitle="Predictive — what's accelerating before it peaks"
@@ -71,12 +71,11 @@ export default function HeatingUpScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </PageShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
   center: {
     flex: 1,
     alignItems: 'center',
