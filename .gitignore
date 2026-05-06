@@ -47,6 +47,7 @@ eas-build-pre-install.sh
 supabase/.branches/
 supabase/.temp/
 supabase/.env
+supabase/functions/.env
 
 # IDE / OS
 .DS_Store
