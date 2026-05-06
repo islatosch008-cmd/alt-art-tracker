@@ -15,7 +15,7 @@
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
     "supabase:reset": "supabase db reset",
-    "supabase:types": "supabase gen types typescript --local > packages/shared/database.types.ts"
+    "supabase:types": "supabase gen types typescript --local 2>/dev/null > packages/shared/database.types.ts"
   },
   "engines": {
     "node": ">=20"
