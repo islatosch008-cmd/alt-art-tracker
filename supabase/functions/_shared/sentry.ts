@@ -43,6 +43,25 @@ export function captureException(
   });
 }
 
+// Use for non-error events that still warrant alerting (e.g. cost cap
+// exceeded, scraper degraded for N days). Same fanout as captureException
+// but at warning level so Sentry's alert rules can distinguish.
+export function captureWarning(
+  message: string,
+  source: string,
+  extra?: Record<string, unknown>,
+): void {
+  console.warn(`[${source}] ${message}`, extra ?? '');
+  if (!dsn) return;
+  Sentry.withScope((scope) => {
+    scope.setLevel('warning');
+    scope.setTag('source', source);
+    scope.setTag('kind', 'edge-function');
+    if (extra) scope.setContext('extra', extra);
+    Sentry.captureMessage(message);
+  });
+}
+
 // Wraps a Deno.serve handler so any thrown error is captured + tagged
 // before the runtime returns a 500.
 export function withSentry(
