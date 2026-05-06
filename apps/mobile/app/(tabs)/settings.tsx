@@ -15,11 +15,13 @@ import { ScreenHeader } from '@/components/screen-header';
 import { useAuth } from '@/lib/auth';
 import { confirmPhoneVerify, startPhoneVerify } from '@/lib/phone';
 import { formatPhoneDisplay, normalizeUSPhone } from '@/lib/phone-format';
+import { useIsAdmin } from '@/lib/use-is-admin';
 import { useProfile } from '@/lib/use-profile';
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const { data: profile, isLoading } = useProfile();
+  const isAdmin = useIsAdmin();
   const qc = useQueryClient();
 
   const [phone, setPhone] = useState('');
@@ -83,6 +85,13 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Signed in as</Text>
           <Text style={styles.cardValue}>{user?.email ?? '—'}</Text>
+          {isAdmin ? (
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleBadgeText}>
+                {profile?.role?.toUpperCase() ?? 'ADMIN'}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.card}>
@@ -195,6 +204,20 @@ const styles = StyleSheet.create({
   },
   cardLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
   cardValue: { fontSize: 16, fontWeight: '600' },
+  roleBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    backgroundColor: '#dbeafe',
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1e40af',
+    letterSpacing: 0.5,
+  },
   hint: { fontSize: 12, color: '#888', marginTop: 4 },
   input: {
     borderWidth: 1,
