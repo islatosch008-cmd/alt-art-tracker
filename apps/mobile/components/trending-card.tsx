@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
-import { StyleSheet, Text, View } from 'react-native';
+import { Link } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { TrendingCard } from '@/lib/use-trending';
 
@@ -11,32 +12,35 @@ export function TrendingCardRow({ card }: { card: TrendingCard }) {
   const setName = card.sets?.name ?? '';
 
   return (
-    <View style={styles.row}>
-      <Image
-        source={card.image_url ?? undefined}
-        style={styles.image}
-        contentFit="cover"
-        transition={150}
-        placeholder={{ blurhash: BLURHASH }}
-      />
-      <View style={styles.body}>
-        <Text style={styles.name} numberOfLines={1}>
-          {card.name}
-        </Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {setName}
-          {card.card_number ? ` · #${card.card_number}` : ''}
-        </Text>
-        <View style={styles.row2}>
-          {card.rarity ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{card.rarity}</Text>
-            </View>
-          ) : null}
-          <Text style={styles.score}>score {scoreText}</Text>
+    <Link href={`/cards/${card.id}`} asChild>
+      <Pressable style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+        <Image
+          source={card.image_url ?? undefined}
+          style={styles.image}
+          contentFit="cover"
+          transition={150}
+          placeholder={{ blurhash: BLURHASH }}
+        />
+        <View style={styles.body}>
+          <Text style={styles.name} numberOfLines={1}>
+            {card.name}
+          </Text>
+          <Text style={styles.meta} numberOfLines={1}>
+            {setName}
+            {card.card_number ? ` · #${card.card_number}` : ''}
+          </Text>
+          <View style={styles.row2}>
+            {card.rarity ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{card.rarity}</Text>
+              </View>
+            ) : null}
+            <Text style={styles.score}>score {scoreText}</Text>
+          </View>
         </View>
-      </View>
-    </View>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
+    </Link>
   );
 }
 
@@ -50,6 +54,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f2f2f2',
     alignItems: 'center',
   },
+  rowPressed: { backgroundColor: '#f7f7f7' },
+  chevron: { fontSize: 24, color: '#ccc', fontWeight: '300' },
   image: {
     width: 60,
     height: 84,
