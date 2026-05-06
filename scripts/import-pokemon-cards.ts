@@ -13,10 +13,19 @@
 
 import { adminClient } from './_supabase.ts';
 import { avgPrice, estimateEbayFromTcg, extractTcgPrice, round2 } from './_pokemon-price.ts';
+import { captureException, flushSentry, initSentry } from './_sentry.ts';
+
+initSentry('import-pokemon-cards');
 
 const API_ROOT = 'https://api.pokemontcg.io/v2';
 const PAGE_SIZE = 250; // API max
 const BRAND_ID = 'pokemon';
+
+// X-Api-Key bumps the rate limit ceiling materially. Anonymous calls work
+// for low volume but Ian has a free key — pass it when set.
+const apiHeaders: Record<string, string> = process.env.POKEMON_TCG_API_KEY
+  ? { 'X-Api-Key': process.env.POKEMON_TCG_API_KEY }
+  : {};
 
 type ApiSet = {
   id: string;
@@ -64,7 +73,7 @@ async function fetchAllSets(): Promise<ApiSet[]> {
   let page = 1;
   while (true) {
     const url = `${API_ROOT}/sets?orderBy=-releaseDate&page=${page}&pageSize=${PAGE_SIZE}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: apiHeaders });
     if (!res.ok) throw new Error(`Sets fetch ${res.status}: ${await res.text()}`);
     const json = (await res.json()) as { data: ApiSet[] };
     sets.push(...json.data);
@@ -79,7 +88,7 @@ async function fetchCardsForSet(setId: string): Promise<ApiCard[]> {
   let page = 1;
   while (true) {
     const url = `${API_ROOT}/cards?q=set.id:${setId}&page=${page}&pageSize=${PAGE_SIZE}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: apiHeaders });
     if (!res.ok) throw new Error(`Cards fetch ${res.status} for ${setId}: ${await res.text()}`);
     const json = (await res.json()) as { data: ApiCard[] };
     cards.push(...json.data);
@@ -227,7 +236,9 @@ async function main() {
   console.log(`\n> Done. inserted ${totalInserted} new cards. total Pokemon cards: ${totalCards}`);
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('\nImport failed:', err.message ?? err);
+  captureException(err, { script: 'import-pokemon-cards' });
+  await flushSentry();
   process.exit(1);
 });

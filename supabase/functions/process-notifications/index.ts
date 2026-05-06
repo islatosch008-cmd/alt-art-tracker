@@ -12,6 +12,7 @@
 import { adminClient } from '../_shared/auth.ts';
 import { logApiRequest } from '../_shared/api-log.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
+import { withSentry } from '../_shared/sentry.ts';
 import { sendSms } from '../_shared/twilio-sms.ts';
 
 const BATCH_SIZE = 50;
@@ -96,7 +97,7 @@ function shouldDeferSms(
   );
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withSentry('process-notifications', async (req) => {
   const pre = preflight(req);
   if (pre) return pre;
 
@@ -228,4 +229,4 @@ Deno.serve(async (req) => {
     skipped,
     failed,
   });
-});
+}));

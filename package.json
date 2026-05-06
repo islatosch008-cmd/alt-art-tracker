@@ -22,6 +22,7 @@
     "invite:new": "tsx scripts/generate-invite.ts"
   },
   "devDependencies": {
+    "@sentry/node": "^8.42.0",
     "tsx": "^4.20.0"
   },
   "engines": {

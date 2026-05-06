@@ -22,6 +22,7 @@
 import { adminClient } from '../_shared/auth.ts';
 import { logApiRequest } from '../_shared/api-log.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
+import { withSentry } from '../_shared/sentry.ts';
 
 const BATCH_SIZE = 200;
 
@@ -65,7 +66,7 @@ function sumWindow<T extends { recorded_at: string }>(
   return total;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withSentry('compute-popularity-scores', async (req) => {
   const pre = preflight(req);
   if (pre) return pre;
 
@@ -184,4 +185,4 @@ Deno.serve(async (req) => {
     cards_updated: updated,
     cards_unchanged_no_signal: unchanged,
   });
-});
+}));

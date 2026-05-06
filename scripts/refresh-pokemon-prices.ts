@@ -12,11 +12,18 @@
 
 import { adminClient } from './_supabase.ts';
 import { avgPrice, estimateEbayFromTcg, extractTcgPrice, round2 } from './_pokemon-price.ts';
+import { captureException, flushSentry, initSentry } from './_sentry.ts';
+
+initSentry('refresh-pokemon-prices');
 
 const API_ROOT = 'https://api.pokemontcg.io/v2';
 const PAGE_SIZE = 250;
 const BRAND_ID = 'pokemon';
 const UPDATE_CONCURRENCY = 25;
+
+const apiHeaders: Record<string, string> = process.env.POKEMON_TCG_API_KEY
+  ? { 'X-Api-Key': process.env.POKEMON_TCG_API_KEY }
+  : {};
 
 type ApiCard = {
   id: string;
@@ -156,7 +163,9 @@ async function main() {
   );
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('\nRefresh failed:', err.message ?? err);
+  captureException(err, { script: 'refresh-pokemon-prices' });
+  await flushSentry();
   process.exit(1);
 });

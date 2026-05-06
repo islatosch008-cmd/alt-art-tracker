@@ -11,6 +11,7 @@
 import { adminClient } from '../_shared/auth.ts';
 import { logApiRequest } from '../_shared/api-log.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
+import { withSentry } from '../_shared/sentry.ts';
 
 const OFFSETS = [30, 7, 1, 0] as const;
 
@@ -21,7 +22,7 @@ function dateStrPlusDays(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withSentry('check-release-alerts', async (req) => {
   const pre = preflight(req);
   if (pre) return pre;
 
@@ -109,4 +110,4 @@ Deno.serve(async (req) => {
     rows_enqueued: enqueued,
     skipped_already_sent: skippedAlreadySent,
   });
-});
+}));

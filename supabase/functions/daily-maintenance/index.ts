@@ -12,8 +12,9 @@
 import { adminClient } from '../_shared/auth.ts';
 import { logApiRequest } from '../_shared/api-log.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
+import { withSentry } from '../_shared/sentry.ts';
 
-Deno.serve(async (req) => {
+Deno.serve(withSentry('daily-maintenance', async (req) => {
   const pre = preflight(req);
   if (pre) return pre;
 
@@ -41,4 +42,4 @@ Deno.serve(async (req) => {
     partitions_added: partitionsAdded ?? [],
     baselines_updated: baselinesUpdated ?? 0,
   });
-});
+}));

@@ -8,6 +8,9 @@
 // and easy to type without confusing 0/O or 1/l.
 
 import { adminClient } from './_supabase.ts';
+import { captureException, flushSentry, initSentry } from './_sentry.ts';
+
+initSentry('generate-invite');
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789'; // 32 chars, no 0/O/1/I
 
@@ -74,7 +77,9 @@ async function main() {
   console.log(`\nShare with: "Sign up at <APP_URL> with code ${code}"`);
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error(err);
+  captureException(err, { script: 'generate-invite' });
+  await flushSentry();
   process.exit(1);
 });

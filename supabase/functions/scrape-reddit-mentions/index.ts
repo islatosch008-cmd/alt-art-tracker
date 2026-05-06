@@ -10,6 +10,7 @@ import { logApiRequest } from '../_shared/api-log.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
 import { takeToken } from '../_shared/rate-limit.ts';
 import { countMentions, isLive } from '../_shared/reddit.ts';
+import { withSentry } from '../_shared/sentry.ts';
 
 const SOURCE = 'reddit';
 const RATE_LIMIT_PER_HOUR = 60 * 60; // Reddit allows ~60/min OAuth'd
@@ -22,7 +23,7 @@ const BRAND_SUBREDDITS: Record<string, string[]> = {
   // additional brands map here
 };
 
-Deno.serve(async (req) => {
+Deno.serve(withSentry('scrape-reddit-mentions', async (req) => {
   const pre = preflight(req);
   if (pre) return pre;
 
@@ -77,4 +78,4 @@ Deno.serve(async (req) => {
     cards_processed: cards?.length ?? 0,
     rows_inserted: inserted,
   });
-});
+}));

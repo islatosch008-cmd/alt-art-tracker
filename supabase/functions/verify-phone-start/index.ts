@@ -1,10 +1,11 @@
 import { adminClient, getCallerUser } from '../_shared/auth.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
+import { withSentry } from '../_shared/sentry.ts';
 import { startVerification } from '../_shared/twilio.ts';
 
 const E164 = /^\+[1-9]\d{7,14}$/;
 
-Deno.serve(async (req) => {
+Deno.serve(withSentry('verify-phone-start', async (req) => {
   const pre = preflight(req);
   if (pre) return pre;
 
@@ -48,4 +49,4 @@ Deno.serve(async (req) => {
   }
 
   return jsonResponse({ ok: true, mode: result.mode });
-});
+}));
