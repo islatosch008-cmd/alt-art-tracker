@@ -1,13 +1,13 @@
 // Once-a-day backend chores:
-//   1. maintain_monthly_partitions  → creates next-month partitions for
+//   1. maintain_monthly_partitions   → creates next-month partitions for
 //      price_history + volume_history before they're needed.
-//   2. recompute_30d_baselines      → updates cards.baseline_30d_price
+//   2. recompute_30d_baselines       → updates cards.baseline_30d_price
 //      + cards.baseline_30d_volume from price_history / volume_history.
+//   3. cleanup_scraper_snapshots(7)  → prunes scraper_html_snapshots rows
+//      older than 7 days so the table doesn't grow unbounded.
 //
-// Both are pure SQL and live as Postgres functions (see
-// 20260506162806_daily_maintenance_functions.sql). This Edge Function
-// is the cron-callable entry point. Run it once a day via pg_cron once
-// that's enabled.
+// All three are Postgres functions. This Edge Function is the cron-callable
+// entry point.
 
 import { adminClient } from '../_shared/auth.ts';
 import { logApiRequest } from '../_shared/api-log.ts';
@@ -30,6 +30,12 @@ Deno.serve(withSentry('daily-maintenance', async (req) => {
   );
   if (baseErr) return jsonResponse({ ok: false, step: 'baselines', error: baseErr.message }, 500);
 
+  const { data: snapshotsPruned, error: snapErr } = await admin.rpc(
+    'cleanup_scraper_snapshots',
+    { retention_days: 7 },
+  );
+  if (snapErr) return jsonResponse({ ok: false, step: 'snapshots', error: snapErr.message }, 500);
+
   await logApiRequest(admin, {
     source: 'daily-maintenance',
     endpoint: 'rpc',
@@ -41,5 +47,6 @@ Deno.serve(withSentry('daily-maintenance', async (req) => {
     ok: true,
     partitions_added: partitionsAdded ?? [],
     baselines_updated: baselinesUpdated ?? 0,
+    snapshots_pruned: snapshotsPruned ?? 0,
   });
 }));
