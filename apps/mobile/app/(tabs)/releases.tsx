@@ -6,7 +6,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScreenHeader } from '@/components/screen-header';
 import {
   daysUntil,
   groupReleases,
@@ -17,65 +19,73 @@ import {
 export default function ReleasesScreen() {
   const { data, isLoading, isRefetching, error, refetch } = useReleases();
 
+  const headerEl = (
+    <ScreenHeader
+      title="Releases"
+      subtitle={`${data?.length ?? 0} set${data?.length === 1 ? '' : 's'} in the catalog`}
+      showSearch
+    />
+  );
+
   if (isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {headerEl}
+        <View style={styles.center}>
+          <ActivityIndicator />
+        </View>
+      </SafeAreaView>
     );
   }
   if (error) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>{(error as Error).message}</Text>
-      </View>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {headerEl}
+        <View style={styles.center}>
+          <Text style={styles.errorText}>{(error as Error).message}</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   const sections = groupReleases(data ?? []);
 
   return (
-    <SectionList
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      sections={sections}
-      keyExtractor={(s) => s.id}
-      renderItem={({ item }) => <ReleaseRow set={item} />}
-      renderSectionHeader={({ section }) => (
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{section.title}</Text>
-        </View>
-      )}
-      renderSectionFooter={({ section }) =>
-        section.title === 'Upcoming' && section.data.length === 0 ? (
-          <View style={styles.upcomingEmpty}>
-            <Text style={styles.upcomingEmptyTitle}>
-              No upcoming releases tracked yet
-            </Text>
-            <Text style={styles.upcomingEmptyHint}>
-              When new sets are announced, the import job picks them up.
-            </Text>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <SectionList
+        contentContainerStyle={styles.content}
+        sections={sections}
+        keyExtractor={(s) => s.id}
+        renderItem={({ item }) => <ReleaseRow set={item} />}
+        renderSectionHeader={({ section }) => (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
           </View>
-        ) : null
-      }
-      stickySectionHeadersEnabled
-      refreshControl={
-        <RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} />
-      }
-      ListHeaderComponent={
-        <View style={styles.pageHeader}>
-          <Text style={styles.title}>Releases</Text>
-          <Text style={styles.subtitle}>
-            {data?.length ?? 0} set{data?.length === 1 ? '' : 's'} in the catalog
+        )}
+        renderSectionFooter={({ section }) =>
+          section.title === 'Upcoming' && section.data.length === 0 ? (
+            <View style={styles.upcomingEmpty}>
+              <Text style={styles.upcomingEmptyTitle}>
+                No upcoming releases tracked yet
+              </Text>
+              <Text style={styles.upcomingEmptyHint}>
+                When new sets are announced, the import job picks them up.
+              </Text>
+            </View>
+          ) : null
+        }
+        stickySectionHeadersEnabled
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} />
+        }
+        ListHeaderComponent={headerEl}
+        ListFooterComponent={
+          <Text style={styles.footer}>
+            Pre-order dates are still empty in Phase 1. Manual entry per release in Week 4.
           </Text>
-        </View>
-      }
-      ListFooterComponent={
-        <Text style={styles.footer}>
-          Pre-order dates are still empty in Phase 1. Manual entry per release in Week 4.
-        </Text>
-      }
-    />
+        }
+      />
+    </SafeAreaView>
   );
 }
 
@@ -116,24 +126,15 @@ function ReleaseRow({ set }: { set: ReleaseSet }) {
 }
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: '#fff' },
   content: { paddingBottom: 32 },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
     padding: 24,
   },
   errorText: { color: '#c00', fontSize: 14, textAlign: 'center' },
-
-  pageHeader: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  title: { fontSize: 28, fontWeight: '700' },
-  subtitle: { fontSize: 14, color: '#666', marginTop: 2 },
 
   sectionHeader: {
     paddingHorizontal: 24,

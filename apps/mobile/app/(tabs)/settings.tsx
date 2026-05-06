@@ -3,12 +3,15 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScreenHeader } from '@/components/screen-header';
 import { useAuth } from '@/lib/auth';
 import { confirmPhoneVerify, startPhoneVerify } from '@/lib/phone';
 import { formatPhoneDisplay, normalizeUSPhone } from '@/lib/phone-format';
@@ -25,7 +28,6 @@ export default function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
 
-  // Hydrate the input with the profile's saved number once it loads.
   const phoneOnProfile = profile?.phone_number ?? '';
   const verified = !!profile?.phone_verified_at;
   const initialPhone = phone || phoneOnProfile;
@@ -75,125 +77,121 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Settings</Text>
-      <Text style={styles.subtitle}>Filters, alerts, account</Text>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenHeader title="Settings" subtitle="Filters, alerts, account" />
+      <ScrollView contentContainerStyle={styles.body}>
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Signed in as</Text>
+          <Text style={styles.cardValue}>{user?.email ?? '—'}</Text>
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>Signed in as</Text>
-        <Text style={styles.cardValue}>{user?.email ?? '—'}</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>Phone</Text>
-        {isLoading ? (
-          <ActivityIndicator />
-        ) : verified ? (
-          <View>
-            <Text style={styles.cardValue}>{formatPhoneDisplay(profile!.phone_number!)} ✓</Text>
-            <Text style={styles.hint}>
-              Verified {new Date(profile!.phone_verified_at!).toLocaleString()}
-            </Text>
-          </View>
-        ) : (
-          <View style={{ gap: 8 }}>
-            {step === 'idle' ? (
-              <>
-                <TextInput
-                  value={initialPhone}
-                  onChangeText={setPhone}
-                  placeholder="(512) 555-1234"
-                  placeholderTextColor="#999"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  style={styles.input}
-                  editable={!busy}
-                />
-                <Text style={styles.hint}>
-                  US numbers only. We add the +1 for you.
-                </Text>
-                <Pressable
-                  style={[styles.primaryButton, busy && styles.disabled]}
-                  disabled={busy}
-                  onPress={onSendCode}>
-                  {busy ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>Send code</Text>
-                  )}
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <TextInput
-                  value={code}
-                  onChangeText={setCode}
-                  placeholder="6-digit code"
-                  placeholderTextColor="#999"
-                  inputMode="numeric"
-                  maxLength={6}
-                  style={[styles.input, styles.codeInput]}
-                  editable={!busy}
-                />
-                <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Phone</Text>
+          {isLoading ? (
+            <ActivityIndicator />
+          ) : verified ? (
+            <View>
+              <Text style={styles.cardValue}>
+                {formatPhoneDisplay(profile!.phone_number!)} ✓
+              </Text>
+              <Text style={styles.hint}>
+                Verified {new Date(profile!.phone_verified_at!).toLocaleString()}
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: 8 }}>
+              {step === 'idle' ? (
+                <>
+                  <TextInput
+                    value={initialPhone}
+                    onChangeText={setPhone}
+                    placeholder="(512) 555-1234"
+                    placeholderTextColor="#999"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    style={styles.input}
+                    editable={!busy}
+                  />
+                  <Text style={styles.hint}>
+                    US numbers only. We add the +1 for you.
+                  </Text>
                   <Pressable
-                    style={[styles.secondaryButton, busy && styles.disabled]}
+                    style={[styles.primaryButton, busy && styles.disabled]}
                     disabled={busy}
-                    onPress={() => {
-                      setStep('idle');
-                      setCode('');
-                      setMsg(null);
-                    }}>
-                    <Text style={styles.secondaryButtonText}>Back</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.primaryButton, busy && styles.disabled, { flex: 1 }]}
-                    disabled={busy}
-                    onPress={onConfirm}>
+                    onPress={onSendCode}>
                     {busy ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
-                      <Text style={styles.primaryButtonText}>Verify</Text>
+                      <Text style={styles.primaryButtonText}>Send code</Text>
                     )}
                   </Pressable>
-                </View>
-              </>
-            )}
-          </View>
-        )}
+                </>
+              ) : (
+                <>
+                  <TextInput
+                    value={code}
+                    onChangeText={setCode}
+                    placeholder="6-digit code"
+                    placeholderTextColor="#999"
+                    inputMode="numeric"
+                    maxLength={6}
+                    style={[styles.input, styles.codeInput]}
+                    editable={!busy}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Pressable
+                      style={[styles.secondaryButton, busy && styles.disabled]}
+                      disabled={busy}
+                      onPress={() => {
+                        setStep('idle');
+                        setCode('');
+                        setMsg(null);
+                      }}>
+                      <Text style={styles.secondaryButtonText}>Back</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.primaryButton, busy && styles.disabled, { flex: 1 }]}
+                      disabled={busy}
+                      onPress={onConfirm}>
+                      {busy ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.primaryButtonText}>Verify</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </View>
+          )}
 
-        {msg ? (
-          <Text style={[styles.msg, msg.kind === 'error' ? styles.error : styles.info]}>
-            {msg.text}
-          </Text>
-        ) : null}
-      </View>
+          {msg ? (
+            <Text style={[styles.msg, msg.kind === 'error' ? styles.error : styles.info]}>
+              {msg.text}
+            </Text>
+          ) : null}
+        </View>
 
-      <View style={styles.placeholder}>
-        <Text style={styles.placeholderText}>Preferences UI coming Week 3</Text>
-      </View>
+        <View style={styles.placeholder}>
+          <Text style={styles.placeholderText}>Preferences UI coming Week 3</Text>
+        </View>
 
-      <Pressable style={styles.signOut} onPress={() => void signOut()}>
-        <Text style={styles.signOutText}>Sign out</Text>
-      </Pressable>
-    </View>
+        <Pressable style={styles.signOut} onPress={() => void signOut()}>
+          <Text style={styles.signOutText}>Sign out</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: '#fff',
-  },
-  title: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
-  subtitle: { fontSize: 16, color: '#666', marginBottom: 24 },
+  container: { flex: 1, backgroundColor: '#fff' },
+  body: { padding: 24, paddingTop: 0, gap: 16, paddingBottom: 40 },
   card: {
     borderWidth: 1,
     borderColor: '#eee',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
     backgroundColor: '#fafafa',
   },
   cardLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
@@ -235,7 +233,7 @@ const styles = StyleSheet.create({
   error: { color: '#c00' },
   info: { color: '#0a0' },
   placeholder: {
-    flex: 1,
+    minHeight: 80,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -245,7 +243,6 @@ const styles = StyleSheet.create({
   },
   placeholderText: { color: '#999', fontSize: 14 },
   signOut: {
-    marginTop: 16,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',

@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Brand } from '@/lib/use-brands';
 
@@ -8,12 +8,12 @@ type Props = {
   onSelect: (brandId: string | null) => void;
 };
 
+// Plain row of chips (was a horizontal ScrollView; switched to View+wrap so
+// content respects parent padding and doesn't overflow on narrow viewports).
+// Phase 1 has 3 brands, so wrap behavior is fine.
 export function BrandChips({ brands, selected, onSelect }: Props) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}>
+    <View style={styles.row}>
       <Chip label="All" active={selected === null} onPress={() => onSelect(null)} />
       {(brands ?? []).map((b) => (
         <Chip
@@ -23,7 +23,7 @@ export function BrandChips({ brands, selected, onSelect }: Props) {
           onPress={() => onSelect(b.id)}
         />
       ))}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -47,9 +47,11 @@ function Chip({
 
 const styles = StyleSheet.create({
   row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 24,
-    gap: 8,
     paddingBottom: 12,
+    gap: 8,
   },
   chip: {
     paddingHorizontal: 14,

@@ -7,8 +7,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandChips } from '@/components/brand-chips';
+import { ScreenHeader } from '@/components/screen-header';
 import { TrendingCardRow } from '@/components/trending-card';
 import { useBrands } from '@/lib/use-brands';
 import { useHeatingUpCards } from '@/lib/use-heating-up';
@@ -19,14 +21,12 @@ export default function HeatingUpScreen() {
   const heating = useHeatingUpCards(brand);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Heating Up</Text>
-        <Text style={styles.subtitle}>
-          Predictive — what's accelerating before it peaks
-        </Text>
-      </View>
-
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenHeader
+        title="Heating Up"
+        subtitle="Predictive — what's accelerating before it peaks"
+        showSearch
+      />
       <BrandChips brands={brands.data} selected={brand} onSelect={setBrand} />
 
       {heating.isLoading ? (
@@ -35,9 +35,7 @@ export default function HeatingUpScreen() {
         </View>
       ) : heating.error ? (
         <View style={styles.center}>
-          <Text style={styles.errorText}>
-            {(heating.error as Error).message}
-          </Text>
+          <Text style={styles.errorText}>{(heating.error as Error).message}</Text>
         </View>
       ) : (heating.data ?? []).length === 0 ? (
         <View style={styles.center}>
@@ -67,15 +65,12 @@ export default function HeatingUpScreen() {
           }
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12 },
-  title: { fontSize: 28, fontWeight: '700' },
-  subtitle: { fontSize: 14, color: '#666', marginTop: 2 },
   center: {
     flex: 1,
     alignItems: 'center',

@@ -1,6 +1,5 @@
-import { Link, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import React from 'react';
-import { Pressable } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -9,21 +8,14 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const tint = Colors[colorScheme ?? 'light'].tint;
-
-  const SearchHeaderButton = () => (
-    <Link href="/search" asChild>
-      <Pressable style={{ paddingHorizontal: 16, paddingVertical: 4 }} hitSlop={8}>
-        <IconSymbol size={22} name="magnifyingglass" color={tint} />
-      </Pressable>
-    </Link>
-  );
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: tint,
-        headerShown: true,
+        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        // Hidden — each tab renders its own ScreenHeader so we don't get
+        // a duplicate title (nav header + in-page title were both showing).
+        headerShown: false,
         tabBarButton: HapticTab,
       }}>
       <Tabs.Screen
@@ -33,7 +25,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="chart.line.uptrend.xyaxis" color={color} />
           ),
-          headerRight: SearchHeaderButton,
         }}
       />
       <Tabs.Screen
@@ -41,7 +32,6 @@ export default function TabLayout() {
         options={{
           title: 'Heating Up',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="flame.fill" color={color} />,
-          headerRight: SearchHeaderButton,
         }}
       />
       <Tabs.Screen
@@ -49,7 +39,6 @@ export default function TabLayout() {
         options={{
           title: 'Releases',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
-          headerRight: SearchHeaderButton,
         }}
       />
       <Tabs.Screen
