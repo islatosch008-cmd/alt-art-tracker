@@ -44,7 +44,9 @@ export default function CardDetailScreen() {
         day: 'numeric',
       })
     : null;
-  const score = Math.round(card.popularity_score ?? 0);
+  // Cap at 100 — placeholder formula can produce 100+ until the real
+  // sigmoid-normalized algorithm lands.
+  const score = Math.min(100, Math.round(card.popularity_score ?? 0));
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -52,13 +54,15 @@ export default function CardDetailScreen() {
 
       <View style={styles.heroWrap}>
         <View style={styles.hero}>
-          <Image
-            source={card.image_url ?? undefined}
-            style={styles.heroImage}
-            contentFit="contain"
-            transition={200}
-            placeholder={{ blurhash: HERO_BLURHASH }}
-          />
+          <View style={styles.heroInner}>
+            <Image
+              source={card.image_url ?? undefined}
+              style={styles.heroImage}
+              contentFit="contain"
+              transition={200}
+              placeholder={{ blurhash: HERO_BLURHASH }}
+            />
+          </View>
         </View>
       </View>
 
@@ -195,12 +199,16 @@ const styles = StyleSheet.create({
     width: 240,
     aspectRatio: 5 / 7,
     borderRadius: 12,
-    overflow: 'hidden',
     backgroundColor: '#eee',
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
+    // boxShadow works cross-platform on RN 0.76+ and silences the
+    // shadow* deprecation warning on web.
+    boxShadow: '0 12px 24px rgba(0, 0, 0, 0.18)',
+  },
+  heroInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   heroImage: { width: '100%', height: '100%' },
 

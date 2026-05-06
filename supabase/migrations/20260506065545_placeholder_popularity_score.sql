@@ -12,7 +12,7 @@
 -- this once we have prices + signals.
 
 update public.cards c
-set popularity_score = (
+set popularity_score = least(100, (
   case c.rarity
     when 'Special Illustration Rare' then 90
     when 'Mega Hyper Rare'           then 88
@@ -35,7 +35,7 @@ set popularity_score = (
   + greatest(0, 10 - coalesce(now()::date - s.release_date, 1000) / 30.0)
   -- light jitter so ties don't always sort the same way
   + random() * 3
-)
+))
 from public.sets s
 where s.id = c.set_id
   and (c.popularity_score is null or c.popularity_score = 0);
