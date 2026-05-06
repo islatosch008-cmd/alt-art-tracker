@@ -11,9 +11,8 @@ import {
 
 import { useAuth } from '@/lib/auth';
 import { confirmPhoneVerify, startPhoneVerify } from '@/lib/phone';
+import { formatPhoneDisplay, normalizeUSPhone } from '@/lib/phone-format';
 import { useProfile } from '@/lib/use-profile';
-
-const E164 = /^\+[1-9]\d{7,14}$/;
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
@@ -33,12 +32,13 @@ export default function SettingsScreen() {
 
   const onSendCode = async () => {
     setMsg(null);
-    if (!E164.test(initialPhone)) {
-      setMsg({ kind: 'error', text: 'E.164 format, e.g. +15125551234' });
+    const normalized = normalizeUSPhone(initialPhone);
+    if (!normalized) {
+      setMsg({ kind: 'error', text: 'Enter a 10-digit US phone number' });
       return;
     }
     setBusy(true);
-    const r = await startPhoneVerify(initialPhone);
+    const r = await startPhoneVerify(normalized);
     setBusy(false);
     if (r.error) {
       setMsg({ kind: 'error', text: r.error });
@@ -90,7 +90,7 @@ export default function SettingsScreen() {
           <ActivityIndicator />
         ) : verified ? (
           <View>
-            <Text style={styles.cardValue}>{profile?.phone_number} ✓</Text>
+            <Text style={styles.cardValue}>{formatPhoneDisplay(profile!.phone_number!)} ✓</Text>
             <Text style={styles.hint}>
               Verified {new Date(profile!.phone_verified_at!).toLocaleString()}
             </Text>
@@ -102,13 +102,16 @@ export default function SettingsScreen() {
                 <TextInput
                   value={initialPhone}
                   onChangeText={setPhone}
-                  placeholder="+15125551234"
+                  placeholder="(512) 555-1234"
                   placeholderTextColor="#999"
                   inputMode="tel"
                   autoComplete="tel"
                   style={styles.input}
                   editable={!busy}
                 />
+                <Text style={styles.hint}>
+                  US numbers only. We add the +1 for you.
+                </Text>
                 <Pressable
                   style={[styles.primaryButton, busy && styles.disabled]}
                   disabled={busy}

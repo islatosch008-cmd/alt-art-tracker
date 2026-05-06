@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
-
-const E164 = /^\+[1-9]\d{7,14}$/;
+import { normalizeUSPhone } from '@/lib/phone-format';
 
 export default function SignupScreen() {
   const { signUp } = useAuth();
@@ -26,16 +25,21 @@ export default function SignupScreen() {
 
   const onSubmit = async () => {
     setError(null);
-    if (phone && !E164.test(phone)) {
-      setError('Phone must be E.164 format, e.g. +15125551234');
-      return;
+    let normalizedPhone: string | undefined;
+    if (phone.trim()) {
+      const n = normalizeUSPhone(phone);
+      if (!n) {
+        setError('Phone must be a 10-digit US number');
+        return;
+      }
+      normalizedPhone = n;
     }
     setBusy(true);
     const { error: err } = await signUp({
       email: email.trim(),
       password,
       inviteCode,
-      phoneNumber: phone || undefined,
+      phoneNumber: normalizedPhone,
     });
     setBusy(false);
     if (err) setError(err);
@@ -98,7 +102,7 @@ export default function SignupScreen() {
           <TextInput
             value={phone}
             onChangeText={setPhone}
-            placeholder="+15125551234"
+            placeholder="(512) 555-1234"
             placeholderTextColor="#999"
             inputMode="tel"
             autoComplete="tel"
@@ -106,7 +110,7 @@ export default function SignupScreen() {
             editable={!busy}
           />
           <Text style={styles.hint}>
-            E.164 format. SMS verification happens after signup (you can skip and add later).
+            US numbers only. We add the +1 for you. Verification happens in Settings after signup.
           </Text>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
