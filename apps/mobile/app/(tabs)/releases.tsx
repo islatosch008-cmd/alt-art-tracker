@@ -1,44 +1,194 @@
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  SectionList,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
+import {
+  daysUntil,
+  groupReleases,
+  type ReleaseSet,
+  useReleases,
+} from '@/lib/use-releases';
 
 export default function ReleasesScreen() {
+  const { data, isLoading, isRefetching, error, refetch } = useReleases();
+
+  if (isLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>{(error as Error).message}</Text>
+      </View>
+    );
+  }
+
+  const sections = groupReleases(data ?? []);
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Releases</Text>
-      <Text style={styles.subtitle}>Upcoming sets and pre-orders</Text>
-      <View style={styles.placeholder}>
-        <Text style={styles.placeholderText}>Calendar coming Week 3</Text>
+    <SectionList
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      sections={sections}
+      keyExtractor={(s) => s.id}
+      renderItem={({ item }) => <ReleaseRow set={item} />}
+      renderSectionHeader={({ section }) => (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{section.title}</Text>
+        </View>
+      )}
+      renderSectionFooter={({ section }) =>
+        section.title === 'Upcoming' && section.data.length === 0 ? (
+          <View style={styles.upcomingEmpty}>
+            <Text style={styles.upcomingEmptyTitle}>
+              No upcoming releases tracked yet
+            </Text>
+            <Text style={styles.upcomingEmptyHint}>
+              When new sets are announced, the import job picks them up.
+            </Text>
+          </View>
+        ) : null
+      }
+      stickySectionHeadersEnabled
+      refreshControl={
+        <RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} />
+      }
+      ListHeaderComponent={
+        <View style={styles.pageHeader}>
+          <Text style={styles.title}>Releases</Text>
+          <Text style={styles.subtitle}>
+            {data?.length ?? 0} set{data?.length === 1 ? '' : 's'} in the catalog
+          </Text>
+        </View>
+      }
+      ListFooterComponent={
+        <Text style={styles.footer}>
+          Pre-order dates are still empty in Phase 1. Manual entry per release in Week 4.
+        </Text>
+      }
+    />
+  );
+}
+
+function ReleaseRow({ set }: { set: ReleaseSet }) {
+  const days = set.release_date ? daysUntil(set.release_date) : null;
+  const releaseLabel = set.release_date
+    ? new Date(set.release_date).toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : 'Unknown';
+
+  let relative = '';
+  if (days !== null) {
+    if (days === 0) relative = 'today';
+    else if (days > 0) relative = `in ${days} day${days === 1 ? '' : 's'}`;
+    else relative = `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago`;
+  }
+
+  return (
+    <View style={styles.row}>
+      <View style={styles.body}>
+        <Text style={styles.name} numberOfLines={1}>
+          {set.name}
+        </Text>
+        <Text style={styles.meta}>
+          {releaseLabel}
+          {relative ? ` · ${relative}` : ''}
+        </Text>
+      </View>
+      <View style={styles.brandBadge}>
+        <Text style={styles.brandBadgeText}>{set.brand_id}</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 24,
-  },
-  placeholder: {
+  container: { backgroundColor: '#fff' },
+  content: { paddingBottom: 32 },
+  center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e5e5',
-    borderStyle: 'dashed',
-    borderRadius: 12,
+    backgroundColor: '#fff',
+    padding: 24,
   },
-  placeholderText: {
-    color: '#999',
-    fontSize: 14,
+  errorText: { color: '#c00', fontSize: 14, textAlign: 'center' },
+
+  pageHeader: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  title: { fontSize: 28, fontWeight: '700' },
+  subtitle: { fontSize: 14, color: '#666', marginTop: 2 },
+
+  sectionHeader: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 6,
+    backgroundColor: '#fff',
+  },
+  sectionTitle: {
+    fontSize: 12,
+    color: '#888',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f2f2f2',
+    gap: 12,
+  },
+  body: { flex: 1 },
+  name: { fontSize: 16, fontWeight: '600', color: '#111' },
+  meta: { fontSize: 13, color: '#666', marginTop: 2 },
+  brandBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    backgroundColor: '#f1f5f9',
+  },
+  brandBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+    textTransform: 'capitalize',
+  },
+
+  upcomingEmpty: {
+    paddingHorizontal: 24,
+    paddingVertical: 18,
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  upcomingEmptyTitle: { fontSize: 14, fontWeight: '600', color: '#444' },
+  upcomingEmptyHint: { fontSize: 12, color: '#999' },
+
+  footer: {
+    color: '#aaa',
+    fontSize: 11,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingTop: 16,
+    paddingHorizontal: 24,
   },
 });
