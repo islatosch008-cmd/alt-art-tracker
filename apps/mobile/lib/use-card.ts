@@ -11,6 +11,8 @@ export type CardDetail = {
   popularity_score: number | null;
   heating_up_score: number | null;
   current_price: number | null;
+  ebay_avg_price: number | null;
+  tcgplayer_market_price: number | null;
   brand_id: string;
   category: string;
   is_sealed: boolean;
@@ -29,7 +31,7 @@ export function useCard(id: string | undefined) {
       const { data, error } = await supabase
         .from('cards')
         .select(
-          'id, name, image_url, rarity, card_number, popularity_score, heating_up_score, current_price, brand_id, category, is_sealed, set_id, external_ids, sets(name, release_date), brands(name)',
+          'id, name, image_url, rarity, card_number, popularity_score, heating_up_score, current_price, ebay_avg_price, tcgplayer_market_price, brand_id, category, is_sealed, set_id, external_ids, sets(name, release_date), brands(name)',
         )
         .eq('id', id)
         .single();

@@ -174,6 +174,7 @@ export type Database = {
           category: string
           created_at: string | null
           current_price: number | null
+          ebay_avg_price: number | null
           external_ids: Json | null
           heating_up_score: number | null
           id: string
@@ -185,6 +186,7 @@ export type Database = {
           popularity_score: number | null
           rarity: string | null
           set_id: string | null
+          tcgplayer_market_price: number | null
           updated_at: string | null
         }
         Insert: {
@@ -195,6 +197,7 @@ export type Database = {
           category: string
           created_at?: string | null
           current_price?: number | null
+          ebay_avg_price?: number | null
           external_ids?: Json | null
           heating_up_score?: number | null
           id?: string
@@ -206,6 +209,7 @@ export type Database = {
           popularity_score?: number | null
           rarity?: string | null
           set_id?: string | null
+          tcgplayer_market_price?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -216,6 +220,7 @@ export type Database = {
           category?: string
           created_at?: string | null
           current_price?: number | null
+          ebay_avg_price?: number | null
           external_ids?: Json | null
           heating_up_score?: number | null
           id?: string
@@ -227,6 +232,7 @@ export type Database = {
           popularity_score?: number | null
           rarity?: string | null
           set_id?: string | null
+          tcgplayer_market_price?: number | null
           updated_at?: string | null
         }
         Relationships: [

@@ -2,13 +2,14 @@ import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { formatUsd } from '@/lib/money';
 import type { TrendingCard } from '@/lib/use-trending';
 
 const BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
 
 // Grid cell version of a trending card (image hero centered above title).
-// Used in the Trending and Heating Up feeds with FlatList numColumns={2}.
-// For dense list contexts (search results) use TrendingCardRow instead.
+// Used in the Trending and Heating Up feeds with FlatList numColumns from
+// useGridCols(). For dense list contexts (search results) use TrendingCardRow.
 export function TrendingCardCell({ card }: { card: TrendingCard }) {
   const score = card.popularity_score ?? 0;
   const scoreText = score > 0 ? Math.min(100, Math.round(score)).toString() : '—';
@@ -33,6 +34,12 @@ export function TrendingCardCell({ card }: { card: TrendingCard }) {
           {setName}
           {card.card_number ? ` · #${card.card_number}` : ''}
         </Text>
+
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>{formatUsd(card.current_price)}</Text>
+          <Text style={styles.priceLabel}>last sold</Text>
+        </View>
+
         <View style={styles.bottomRow}>
           {card.rarity ? (
             <View style={styles.badge}>
@@ -86,11 +93,31 @@ const styles = StyleSheet.create({
     marginTop: 2,
     paddingHorizontal: 4,
   },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  price: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111',
+    fontVariant: ['tabular-nums'],
+  },
+  priceLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 6,
     paddingHorizontal: 4,
     gap: 6,
   },
@@ -107,7 +134,7 @@ const styles = StyleSheet.create({
     color: '#92400e',
   },
   score: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#888',
     fontWeight: '600',
     fontVariant: ['tabular-nums'],

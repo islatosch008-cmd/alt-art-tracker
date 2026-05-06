@@ -14,7 +14,7 @@ export function useHeatingUpCards(brandId: string | null) {
       let q = supabase
         .from('cards')
         .select(
-          'id, name, image_url, rarity, card_number, popularity_score, current_price, brand_id, sets(name)',
+          'id, name, image_url, rarity, card_number, popularity_score, current_price, ebay_avg_price, tcgplayer_market_price, brand_id, sets(name)',
         )
         .gt('heating_up_score', 0)
         .order('heating_up_score', { ascending: false, nullsFirst: false })

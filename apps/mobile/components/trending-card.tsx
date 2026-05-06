@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { formatUsd } from '@/lib/money';
 import type { TrendingCard } from '@/lib/use-trending';
 
 const BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
@@ -39,6 +40,10 @@ export function TrendingCardRow({ card }: { card: TrendingCard }) {
             ) : null}
             <Text style={styles.score}>score {scoreText}</Text>
           </View>
+        </View>
+        <View style={styles.priceCol}>
+          <Text style={styles.price}>{formatUsd(card.current_price)}</Text>
+          <Text style={styles.priceLabel}>last sold</Text>
         </View>
         <Text style={styles.chevron}>›</Text>
       </Pressable>
@@ -98,5 +103,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     fontVariant: ['tabular-nums'],
+  },
+  priceCol: {
+    alignItems: 'flex-end',
+    gap: 2,
+    minWidth: 64,
+  },
+  price: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111',
+    fontVariant: ['tabular-nums'],
+  },
+  priceLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#aaa',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
 });

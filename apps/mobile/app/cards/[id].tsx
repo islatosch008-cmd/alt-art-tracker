@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 
+import { formatUsd } from '@/lib/money';
 import { useCard } from '@/lib/use-card';
 
 const HERO_BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
@@ -89,10 +90,14 @@ export default function CardDetailScreen() {
         <ProgressBar value={score} max={100} />
       </Stat>
 
-      <Stat label="Current price" hint="Live prices light up Week 2 (PriceCharting + eBay).">
-        <Text style={styles.priceNumber}>
-          {card.current_price != null ? `$${card.current_price.toFixed(2)}` : '—'}
-        </Text>
+      <Stat
+        label="Last sold (avg)"
+        hint="Placeholder values until eBay sold-listing + PriceCharting scrapers run (Week 2).">
+        <Text style={styles.priceNumber}>{formatUsd(card.current_price)}</Text>
+        <View style={styles.priceTable}>
+          <PriceRow label="eBay (avg of recent sold)" value={card.ebay_avg_price} />
+          <PriceRow label="TCGplayer (market)" value={card.tcgplayer_market_price} />
+        </View>
       </Stat>
 
       <Stat label="Price history (90d)" hint="Empty until the price scraper runs.">
@@ -120,6 +125,15 @@ export default function CardDetailScreen() {
         Affiliate links wire up Week 4. Some links earn us a commission at no cost to you.
       </Text>
     </ScrollView>
+  );
+}
+
+function PriceRow({ label, value }: { label: string; value: number | null }) {
+  return (
+    <View style={styles.priceTableRow}>
+      <Text style={styles.priceTableLabel}>{label}</Text>
+      <Text style={styles.priceTableValue}>{formatUsd(value)}</Text>
+    </View>
   );
 }
 
@@ -288,6 +302,28 @@ const styles = StyleSheet.create({
 
   priceNumber: {
     fontSize: 30,
+    fontWeight: '700',
+    color: '#111',
+    fontVariant: ['tabular-nums'],
+  },
+  priceTable: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  priceTableRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  priceTableLabel: {
+    fontSize: 13,
+    color: '#444',
+  },
+  priceTableValue: {
+    fontSize: 14,
     fontWeight: '700',
     color: '#111',
     fontVariant: ['tabular-nums'],
