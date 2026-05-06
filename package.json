@@ -18,6 +18,7 @@
     "supabase:types": "supabase gen types typescript --local 2>/dev/null > packages/shared/database.types.ts",
     "supabase:functions": "supabase functions serve --no-verify-jwt --env-file supabase/functions/.env",
     "import:pokemon": "tsx scripts/import-pokemon-cards.ts",
+    "refresh:prices": "tsx scripts/refresh-pokemon-prices.ts",
     "invite:new": "tsx scripts/generate-invite.ts"
   },
   "devDependencies": {

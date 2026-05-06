@@ -92,11 +92,19 @@ export default function CardDetailScreen() {
 
       <Stat
         label="Last sold (avg)"
-        hint="Placeholder values until eBay sold-listing + PriceCharting scrapers run (Week 2).">
+        hint={priceSourceHint(card.last_price_check_at)}>
         <Text style={styles.priceNumber}>{formatUsd(card.current_price)}</Text>
         <View style={styles.priceTable}>
-          <PriceRow label="eBay (avg of recent sold)" value={card.ebay_avg_price} />
-          <PriceRow label="TCGplayer (market)" value={card.tcgplayer_market_price} />
+          <PriceRow
+            label="TCGplayer market"
+            value={card.tcgplayer_market_price}
+            tag={card.last_price_check_at ? 'live' : 'placeholder'}
+          />
+          <PriceRow
+            label="eBay (avg of recent sold)"
+            value={card.ebay_avg_price}
+            tag={card.last_price_check_at ? 'estimated' : 'placeholder'}
+          />
         </View>
       </Stat>
 
@@ -128,13 +136,39 @@ export default function CardDetailScreen() {
   );
 }
 
-function PriceRow({ label, value }: { label: string; value: number | null }) {
+type PriceTag = 'live' | 'estimated' | 'placeholder';
+
+function PriceRow({
+  label,
+  value,
+  tag,
+}: {
+  label: string;
+  value: number | null;
+  tag: PriceTag;
+}) {
+  const tagStyle =
+    tag === 'live' ? styles.tagLive : tag === 'estimated' ? styles.tagEst : styles.tagPlaceholder;
+  const tagText = tag === 'live' ? 'live' : tag === 'estimated' ? 'estimated' : 'placeholder';
   return (
     <View style={styles.priceTableRow}>
-      <Text style={styles.priceTableLabel}>{label}</Text>
+      <View style={styles.priceTableLabelCol}>
+        <Text style={styles.priceTableLabel}>{label}</Text>
+        <View style={[styles.tagPill, tagStyle]}>
+          <Text style={styles.tagText}>{tagText}</Text>
+        </View>
+      </View>
       <Text style={styles.priceTableValue}>{formatUsd(value)}</Text>
     </View>
   );
+}
+
+function priceSourceHint(lastCheckAt: string | null): string {
+  if (!lastCheckAt) {
+    return 'Placeholder until prices refresh — run `npm run refresh:prices` against the local DB.';
+  }
+  const when = new Date(lastCheckAt).toLocaleString();
+  return `TCGplayer market is live (Pokemon TCG API, refreshed ${when}). eBay is estimated until eBay Browse API + Marketplace Insights are wired up.`;
 }
 
 function Stat({
@@ -318,9 +352,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f5f5f5',
   },
+  priceTableLabelCol: {
+    flex: 1,
+    gap: 4,
+  },
   priceTableLabel: {
     fontSize: 13,
     color: '#444',
+  },
+  tagPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  tagLive: { backgroundColor: '#dcfce7' },
+  tagEst: { backgroundColor: '#fef3c7' },
+  tagPlaceholder: { backgroundColor: '#f1f5f9' },
+  tagText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: '#374151',
   },
   priceTableValue: {
     fontSize: 14,

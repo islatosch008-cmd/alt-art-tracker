@@ -12,6 +12,7 @@
 //   https://api.pokemontcg.io/v2 — free, no key needed for low volume.
 
 import { adminClient } from './_supabase.ts';
+import { avgPrice, estimateEbayFromTcg, extractTcgPrice, round2 } from './_pokemon-price.ts';
 
 const API_ROOT = 'https://api.pokemontcg.io/v2';
 const PAGE_SIZE = 250; // API max
@@ -34,6 +35,11 @@ type ApiCard = {
   rarity?: string;
   set: { id: string };
   images?: { small?: string; large?: string };
+  tcgplayer?: {
+    url?: string;
+    updatedAt?: string;
+    prices?: Record<string, Record<string, number> | null>;
+  };
 };
 
 function parseArgs(argv: string[]): { since: string; all: boolean } {
@@ -164,19 +170,29 @@ async function main() {
     if (!setUuid) continue;
 
     const apiCards = await fetchCardsForSet(set.id);
+    const now = new Date().toISOString();
     const newRows = apiCards
       .filter((c) => !existingCardIds.has(c.id))
-      .map((c) => ({
-        set_id: setUuid,
-        brand_id: BRAND_ID,
-        category: 'tcg',
-        name: c.name,
-        card_number: c.number ?? null,
-        rarity: c.rarity ?? null,
-        is_sealed: false,
-        image_url: c.images?.large ?? c.images?.small ?? null,
-        external_ids: { tcg_api_id: c.id },
-      }));
+      .map((c) => {
+        const tcg = extractTcgPrice(c.tcgplayer);
+        const ebay = tcg != null ? estimateEbayFromTcg(tcg) : null;
+        const avg = tcg != null && ebay != null ? avgPrice(tcg, ebay) : null;
+        return {
+          set_id: setUuid,
+          brand_id: BRAND_ID,
+          category: 'tcg',
+          name: c.name,
+          card_number: c.number ?? null,
+          rarity: c.rarity ?? null,
+          is_sealed: false,
+          image_url: c.images?.large ?? c.images?.small ?? null,
+          external_ids: { tcg_api_id: c.id },
+          tcgplayer_market_price: tcg != null ? round2(tcg) : null,
+          ebay_avg_price: ebay != null ? round2(ebay) : null,
+          current_price: avg != null ? round2(avg) : null,
+          last_price_check_at: tcg != null ? now : null,
+        };
+      });
 
     if (newRows.length === 0) {
       console.log(`  ${set.name.padEnd(30)} ${apiCards.length} cards, 0 new`);
