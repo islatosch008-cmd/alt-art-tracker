@@ -13,12 +13,14 @@ import { BrandChips } from '@/components/brand-chips';
 import { ScreenHeader } from '@/components/screen-header';
 import { TrendingCardCell } from '@/components/trending-card-cell';
 import { useBrands } from '@/lib/use-brands';
+import { useGridCols } from '@/lib/use-grid-cols';
 import { useTrendingCards } from '@/lib/use-trending';
 
 export default function TrendingScreen() {
   const [brand, setBrand] = useState<string | null>(null);
   const brands = useBrands();
   const trending = useTrendingCards(brand);
+  const cols = useGridCols();
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -43,8 +45,11 @@ export default function TrendingScreen() {
         <FlatList
           data={trending.data}
           keyExtractor={(card) => card.id}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
+          // key forces a clean remount when the column count changes (RN
+          // FlatList can't switch numColumns in place).
+          key={`grid-${cols}`}
+          numColumns={cols}
+          columnWrapperStyle={cols > 1 ? styles.gridRow : undefined}
           contentContainerStyle={styles.gridContent}
           renderItem={({ item }) => <TrendingCardCell card={item} />}
           refreshControl={

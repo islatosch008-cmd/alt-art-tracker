@@ -13,12 +13,14 @@ import { BrandChips } from '@/components/brand-chips';
 import { ScreenHeader } from '@/components/screen-header';
 import { TrendingCardCell } from '@/components/trending-card-cell';
 import { useBrands } from '@/lib/use-brands';
+import { useGridCols } from '@/lib/use-grid-cols';
 import { useHeatingUpCards } from '@/lib/use-heating-up';
 
 export default function HeatingUpScreen() {
   const [brand, setBrand] = useState<string | null>(null);
   const brands = useBrands();
   const heating = useHeatingUpCards(brand);
+  const cols = useGridCols();
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -49,8 +51,9 @@ export default function HeatingUpScreen() {
         <FlatList
           data={heating.data}
           keyExtractor={(card) => card.id}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
+          key={`grid-${cols}`}
+          numColumns={cols}
+          columnWrapperStyle={cols > 1 ? styles.gridRow : undefined}
           contentContainerStyle={styles.gridContent}
           renderItem={({ item }) => <TrendingCardCell card={item} />}
           refreshControl={
