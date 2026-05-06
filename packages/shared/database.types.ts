@@ -686,46 +686,96 @@ export type Database = {
       }
       sets: {
         Row: {
+          box_type: string | null
           brand_id: string
+          confidence: string | null
           created_at: string | null
           external_ids: Json | null
           id: string
+          last_synced_at: string | null
+          locked_fields: string[]
           msrp_box: number | null
           msrp_card: number | null
           msrp_pack: number | null
           name: string
           pre_order_opens_at: string | null
           release_date: string | null
+          source: string
+          source_id: string | null
+          sport: string | null
         }
         Insert: {
+          box_type?: string | null
           brand_id: string
+          confidence?: string | null
           created_at?: string | null
           external_ids?: Json | null
           id?: string
+          last_synced_at?: string | null
+          locked_fields?: string[]
           msrp_box?: number | null
           msrp_card?: number | null
           msrp_pack?: number | null
           name: string
           pre_order_opens_at?: string | null
           release_date?: string | null
+          source?: string
+          source_id?: string | null
+          sport?: string | null
         }
         Update: {
+          box_type?: string | null
           brand_id?: string
+          confidence?: string | null
           created_at?: string | null
           external_ids?: Json | null
           id?: string
+          last_synced_at?: string | null
+          locked_fields?: string[]
           msrp_box?: number | null
           msrp_card?: number | null
           msrp_pack?: number | null
           name?: string
           pre_order_opens_at?: string | null
           release_date?: string | null
+          source?: string
+          source_id?: string | null
+          sport?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "sets_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tcgcsv_category_map: {
+        Row: {
+          brand_id: string
+          category_id: number
+          category_name: string
+          resolved_at: string
+        }
+        Insert: {
+          brand_id: string
+          category_id: number
+          category_name: string
+          resolved_at?: string
+        }
+        Update: {
+          brand_id?: string
+          category_id?: number
+          category_name?: string
+          resolved_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tcgcsv_category_map_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
@@ -940,7 +990,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      invoke_function: { Args: { body?: Json; fname: string }; Returns: number }
+      maintain_monthly_partitions: {
+        Args: never
+        Returns: {
+          parent: string
+          partition_name: string
+          range_from: string
+          range_to: string
+        }[]
+      }
+      recompute_30d_baselines: { Args: never; Returns: number }
     }
     Enums: {
       [_ in never]: never
