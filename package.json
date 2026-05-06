@@ -19,6 +19,7 @@
     "supabase:functions": "supabase functions serve --no-verify-jwt --env-file supabase/functions/.env",
     "import:pokemon": "tsx scripts/import-pokemon-cards.ts",
     "refresh:prices": "tsx scripts/refresh-pokemon-prices.ts",
+    "tcgcsv:refresh": "tsx scripts/import-tcgcsv.ts",
     "invite:new": "tsx scripts/generate-invite.ts"
   },
   "devDependencies": {

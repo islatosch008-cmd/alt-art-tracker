@@ -775,7 +775,7 @@ export type Database = {
           {
             foreignKeyName: "tcgcsv_category_map_brand_id_fkey"
             columns: ["brand_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
