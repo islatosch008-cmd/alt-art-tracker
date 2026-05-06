@@ -4,6 +4,23 @@ This document is the source of truth for the Alt Art Tracker project. Read this 
 
 ---
 
+## Recent decisions (most recent first)
+
+- **2026-05-06: PriceCharting dropped, eBay + Pokemon TCG API are the two real price sources.**
+  PriceCharting no longer offers a public API for new accounts. The
+  `scrape-pricecharting-prices` Edge Function still exists as a stub but is
+  not on the path to live. Real pricing in Phase 1:
+    - **TCGplayer market** — comes from `tcgplayer.prices` on each Pokemon TCG
+      API card response (free, no auth). Refresh with `npm run refresh:prices`.
+      Stored in `cards.tcgplayer_market_price`.
+    - **eBay sold listings** — pending Ian's eBay Developer / Marketplace
+      Insights approval. Will land as `scrape-ebay-sold` Edge Function. Stored
+      in `cards.ebay_avg_price`. Until then the column is left NULL — UI shows
+      "syncing" / "awaiting eBay" rather than fake numbers.
+    - `cards.current_price` = avg of whichever of the two are non-null.
+
+---
+
 ## Project context
 
 **Product:** SMS-first alert and trending intelligence app for trading card / sports card flippers. Core differentiators: SMS drop alerts, predictive Heating Up feed, convention integration (Phase 4).

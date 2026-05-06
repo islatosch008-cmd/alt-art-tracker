@@ -92,20 +92,32 @@ export default function CardDetailScreen() {
 
       <Stat
         label="Last sold (avg)"
-        hint={priceSourceHint(card.last_price_check_at)}>
-        <Text style={styles.priceNumber}>{formatUsd(card.current_price)}</Text>
-        <View style={styles.priceTable}>
-          <PriceRow
-            label="TCGplayer market"
-            value={card.tcgplayer_market_price}
-            tag={card.last_price_check_at ? 'live' : 'placeholder'}
-          />
-          <PriceRow
-            label="eBay (avg of recent sold)"
-            value={card.ebay_avg_price}
-            tag={card.last_price_check_at ? 'estimated' : 'placeholder'}
-          />
-        </View>
+        hint={priceSourceHint(card.last_price_check_at, card.current_price)}>
+        {card.current_price != null ? (
+          <>
+            <Text style={styles.priceNumber}>{formatUsd(card.current_price)}</Text>
+            <View style={styles.priceTable}>
+              <PriceRow
+                label="TCGplayer market"
+                value={card.tcgplayer_market_price}
+                tag={card.last_price_check_at ? 'live' : 'placeholder'}
+              />
+              <PriceRow
+                label="eBay (avg of recent sold)"
+                value={card.ebay_avg_price}
+                tag={card.tcgplayer_market_price != null ? 'estimated' : 'no-data'}
+              />
+            </View>
+          </>
+        ) : (
+          <View style={styles.pricePending}>
+            <Text style={styles.pricePendingTitle}>No price data yet</Text>
+            <Text style={styles.pricePendingSub}>
+              Newer sets show up here once the Pokemon TCG API or eBay API
+              returns data for them.
+            </Text>
+          </View>
+        )}
       </Stat>
 
       <Stat label="Price history (90d)" hint="Empty until the price scraper runs.">
@@ -136,7 +148,7 @@ export default function CardDetailScreen() {
   );
 }
 
-type PriceTag = 'live' | 'estimated' | 'placeholder';
+type PriceTag = 'live' | 'estimated' | 'placeholder' | 'no-data';
 
 function PriceRow({
   label,
@@ -148,8 +160,21 @@ function PriceRow({
   tag: PriceTag;
 }) {
   const tagStyle =
-    tag === 'live' ? styles.tagLive : tag === 'estimated' ? styles.tagEst : styles.tagPlaceholder;
-  const tagText = tag === 'live' ? 'live' : tag === 'estimated' ? 'estimated' : 'placeholder';
+    tag === 'live'
+      ? styles.tagLive
+      : tag === 'estimated'
+        ? styles.tagEst
+        : tag === 'no-data'
+          ? styles.tagPlaceholder
+          : styles.tagPlaceholder;
+  const tagText =
+    tag === 'live'
+      ? 'live'
+      : tag === 'estimated'
+        ? 'estimated'
+        : tag === 'no-data'
+          ? 'awaiting eBay'
+          : 'placeholder';
   return (
     <View style={styles.priceTableRow}>
       <View style={styles.priceTableLabelCol}>
@@ -163,12 +188,18 @@ function PriceRow({
   );
 }
 
-function priceSourceHint(lastCheckAt: string | null): string {
+function priceSourceHint(
+  lastCheckAt: string | null,
+  currentPrice: number | null,
+): string {
+  if (currentPrice == null) {
+    return 'No price feed yet. The Pokemon TCG API doesn’t list this card; eBay scraper takes over once credentials are wired.';
+  }
   if (!lastCheckAt) {
-    return 'Placeholder until prices refresh — run `npm run refresh:prices` against the local DB.';
+    return 'Placeholder until prices refresh — run `npm run refresh:prices`.';
   }
   const when = new Date(lastCheckAt).toLocaleString();
-  return `TCGplayer market is live (Pokemon TCG API, refreshed ${when}). eBay is estimated until eBay Browse API + Marketplace Insights are wired up.`;
+  return `TCGplayer market is live (Pokemon TCG API, refreshed ${when}). eBay is estimated until the eBay scraper runs.`;
 }
 
 function Stat({
@@ -344,6 +375,26 @@ const styles = StyleSheet.create({
     marginTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
+  },
+  pricePending: {
+    marginTop: 4,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: '#fafafa',
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderStyle: 'dashed',
+    gap: 4,
+  },
+  pricePendingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#444',
+  },
+  pricePendingSub: {
+    fontSize: 12,
+    color: '#888',
   },
   priceTableRow: {
     flexDirection: 'row',

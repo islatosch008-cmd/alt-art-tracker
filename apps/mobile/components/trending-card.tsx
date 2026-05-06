@@ -42,8 +42,14 @@ export function TrendingCardRow({ card }: { card: TrendingCard }) {
           </View>
         </View>
         <View style={styles.priceCol}>
-          <Text style={styles.price}>{formatUsd(card.current_price)}</Text>
-          <Text style={styles.priceLabel}>last sold</Text>
+          {card.current_price != null ? (
+            <>
+              <Text style={styles.price}>{formatUsd(card.current_price)}</Text>
+              <Text style={styles.priceLabel}>last sold</Text>
+            </>
+          ) : (
+            <Text style={styles.priceMissing}>syncing</Text>
+          )}
         </View>
         <Text style={styles.chevron}>›</Text>
       </Pressable>
@@ -121,5 +127,11 @@ const styles = StyleSheet.create({
     color: '#aaa',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
+  },
+  priceMissing: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#aaa',
+    fontStyle: 'italic',
   },
 });
