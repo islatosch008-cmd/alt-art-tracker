@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandChips } from '@/components/brand-chips';
 import { ScreenHeader } from '@/components/screen-header';
-import { TrendingCardRow } from '@/components/trending-card';
+import { TrendingCardCell } from '@/components/trending-card-cell';
 import { useBrands } from '@/lib/use-brands';
 import { useHeatingUpCards } from '@/lib/use-heating-up';
 
@@ -49,7 +49,10 @@ export default function HeatingUpScreen() {
         <FlatList
           data={heating.data}
           keyExtractor={(card) => card.id}
-          renderItem={({ item }) => <TrendingCardRow card={item} />}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
+          contentContainerStyle={styles.gridContent}
+          renderItem={({ item }) => <TrendingCardCell card={item} />}
           refreshControl={
             <RefreshControl
               refreshing={heating.isRefetching}
@@ -86,6 +89,8 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   errorText: { color: '#c00', fontSize: 14, textAlign: 'center' },
+  gridContent: { paddingHorizontal: 12, paddingTop: 4 },
+  gridRow: { gap: 8, marginBottom: 8 },
   footer: {
     color: '#aaa',
     fontSize: 11,
