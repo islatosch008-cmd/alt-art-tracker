@@ -13,32 +13,58 @@ import {
 
 import { useAuth } from '@/lib/auth';
 
-export default function LoginScreen() {
-  const { signIn } = useAuth();
+const E164 = /^\+[1-9]\d{7,14}$/;
+
+export default function SignupScreen() {
+  const { signUp } = useAuth();
+  const [inviteCode, setInviteCode] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onSubmit = async () => {
     setError(null);
+    if (phone && !E164.test(phone)) {
+      setError('Phone must be E.164 format, e.g. +15125551234');
+      return;
+    }
     setBusy(true);
-    const { error: err } = await signIn(email.trim(), password);
+    const { error: err } = await signUp({
+      email: email.trim(),
+      password,
+      inviteCode,
+      phoneNumber: phone || undefined,
+    });
     setBusy(false);
     if (err) setError(err);
+    // success: AuthGate redirects to /(tabs) automatically
   };
 
-  const disabled = busy || email.length === 0 || password.length === 0;
+  const disabled =
+    busy || inviteCode.length === 0 || email.length === 0 || password.length < 12;
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}>
       <View style={styles.inner}>
-        <Text style={styles.brand}>Alt Art Tracker</Text>
-        <Text style={styles.tagline}>Card alerts that actually move</Text>
+        <Text style={styles.brand}>Redeem invite</Text>
+        <Text style={styles.tagline}>Phase 1 is invite-only</Text>
 
         <View style={styles.form}>
+          <Text style={styles.label}>Invite code</Text>
+          <TextInput
+            value={inviteCode}
+            onChangeText={setInviteCode}
+            placeholder="OWNER-2026"
+            placeholderTextColor="#999"
+            autoCapitalize="characters"
+            style={styles.input}
+            editable={!busy}
+          />
+
           <Text style={styles.label}>Email</Text>
           <TextInput
             value={email}
@@ -56,14 +82,32 @@ export default function LoginScreen() {
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder="••••••••"
+            placeholder="At least 12 characters"
             placeholderTextColor="#999"
             secureTextEntry
-            autoComplete="current-password"
+            autoComplete="new-password"
             style={styles.input}
             editable={!busy}
-            onSubmitEditing={onSubmit}
           />
+          <Text style={styles.hint}>
+            We check against HaveIBeenPwned to block reused passwords. Your password never leaves
+            your device.
+          </Text>
+
+          <Text style={styles.label}>Phone (optional)</Text>
+          <TextInput
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="+15125551234"
+            placeholderTextColor="#999"
+            inputMode="tel"
+            autoComplete="tel"
+            style={styles.input}
+            editable={!busy}
+          />
+          <Text style={styles.hint}>
+            E.164 format. SMS verification happens after signup (you can skip and add later).
+          </Text>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -74,15 +118,15 @@ export default function LoginScreen() {
             {busy ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.primaryButtonText}>Sign in</Text>
+              <Text style={styles.primaryButtonText}>Create account</Text>
             )}
           </Pressable>
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>No account?</Text>
-          <Link href="/signup" style={styles.link}>
-            Redeem an invite code
+          <Text style={styles.footerText}>Already have an account?</Text>
+          <Link href="/login" style={styles.link}>
+            Sign in
           </Link>
         </View>
       </View>
@@ -104,23 +148,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   brand: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     marginBottom: 4,
   },
   tagline: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  form: {
-    gap: 8,
-  },
+  form: { gap: 8 },
   label: {
     fontSize: 13,
     fontWeight: '600',
     color: '#333',
-    marginTop: 12,
+    marginTop: 10,
   },
   input: {
     borderWidth: 1,
@@ -130,6 +172,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
     backgroundColor: '#fafafa',
+  },
+  hint: {
+    fontSize: 11,
+    color: '#888',
+    marginTop: 4,
   },
   primaryButton: {
     marginTop: 20,
@@ -150,17 +197,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   footer: {
-    marginTop: 32,
+    marginTop: 24,
     alignItems: 'center',
     gap: 4,
   },
-  footerText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  link: {
-    color: '#0066cc',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  footerText: { fontSize: 14, color: '#666' },
+  link: { color: '#0066cc', fontSize: 14, fontWeight: '600' },
 });
