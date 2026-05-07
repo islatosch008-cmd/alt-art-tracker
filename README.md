@@ -73,11 +73,27 @@ npm run invite:new -- "Sam"      # generate a partner invite code
 All secrets live in gitignored `.env` files:
 
 - `apps/mobile/.env.local` — `EXPO_PUBLIC_SUPABASE_URL` / `_ANON_KEY` (loaded by Expo at dev time, ship in JS bundle)
-- `supabase/functions/.env` — Twilio + scraper API keys (loaded by `supabase functions serve`)
+- `supabase/functions/.env` — Twilio + Anthropic + PSA + (when set) eBay/Reddit (loaded by `supabase functions serve`)
 - `.env.local` (root) — placeholders for everything; reference template
+
+See `supabase/functions/.env.example` for the canonical list of variable
+names. **NEVER use editor autosave files (`.env.save`)** — those are
+gitignored but copy-paste mistakes have leaked secrets twice already.
 
 To rotate a key: change it in the relevant `.env` file, restart the affected
 process. Never paste a secret into chat, an issue, or a commit.
+
+## GitHub Actions secrets (Google Trends fetcher)
+
+The `.github/workflows/google-trends-cron.yml` workflow runs daily at
+07:00 UTC on a hosted runner. It needs two repository secrets:
+
+- `SUPABASE_URL` — production Supabase URL (e.g. `https://<ref>.supabase.co`)
+- `SUPABASE_SERVICE_ROLE_KEY` — production service role key (admin)
+
+Add both at GitHub → repo Settings → Secrets and variables → Actions →
+"New repository secret". The workflow can also be triggered manually
+from the Actions tab.
 
 ## Status: Phase 1 Week 1 acceptance
 

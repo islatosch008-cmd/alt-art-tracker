@@ -79,6 +79,13 @@ export const SCRAPER_SOURCES: SourceConfig[] = [
     triggerable: true,
   },
   {
+    source: 'google_trends',
+    display: 'Google Trends',
+    description: 'Daily search-interest signal for top-50 cards · runs in GitHub Actions, not as an Edge Function — manual trigger via the Actions tab',
+    functionName: '',
+    triggerable: false,
+  },
+  {
     source: 'compute-popularity',
     display: 'Popularity scores',
     description: 'Trending Now sigmoid recompute · hourly :15',
@@ -103,17 +110,18 @@ export const SCRAPER_SOURCES: SourceConfig[] = [
 
 // Sources we deliberately don't scrape (per project decisions update).
 export const SKIPPED_SOURCES: Array<{ name: string; reason: string }> = [
-  { name: 'Topps', reason: 'Cloudflare WAF block — covered by CardboardConnection' },
-  { name: 'Panini', reason: 'Cloudflare WAF block — covered by CardboardConnection' },
+  { name: 'Topps', reason: 'Cloudflare WAF block on entire domain — covered by CardboardConnection' },
+  { name: 'Panini', reason: 'Cloudflare WAF block on entire domain — covered by CardboardConnection' },
   {
     name: 'Fanatics Collect',
-    reason: 'Phase 4 Playwright worker if needed — covered by AI agent',
+    reason:
+      'Next.js SPA, /api/marketplace/search exists but rejects unauth POSTs (405). Needs cookie + CSRF from a real browser session — Phase 4 Playwright worker. AI research agent covers Fanatics in the meantime.',
   },
   {
     name: 'Upper Deck',
-    reason: 'No public release calendar URL — covered by CC + AI',
+    reason: 'No public release calendar URL exists — /Sports/ returns news, not a calendar. Covered by CC + AI agent.',
   },
-  { name: 'PriceCharting', reason: 'Public API discontinued — TCGCSV is the source' },
+  { name: 'PriceCharting', reason: 'Public API discontinued for new accounts — TCGCSV is the TCG price source' },
 ];
 
 export type LogRow = {
