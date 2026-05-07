@@ -367,7 +367,9 @@ Deno.serve(
         system,
         user,
         tools: [WEB_SEARCH_TOOL],
-        maxTokens: 8000,
+        // 16K tokens fits ~120 release objects (each ~125 tokens). Empirically
+        // 8K truncated mid-array on first real run, leaving JSON unparseable.
+        maxTokens: 16000,
         temperature: 0,
       });
     } catch (err) {

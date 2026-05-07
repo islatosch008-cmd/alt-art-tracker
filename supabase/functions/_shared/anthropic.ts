@@ -117,21 +117,78 @@ export function stripFences(s: string): string {
 }
 
 // More aggressive JSON extractor for when Claude prefaces with narrative
-// ("Based on my research…") and then dumps the JSON in ```json fences.
-// Tries in order:
+// ("Based on my research…"), wraps in fences, AND/OR runs out of tokens
+// mid-array. Tries in order:
 //   1. text inside the FIRST ```json ... ``` fence pair
 //   2. text inside the FIRST ``` ... ``` fence pair
 //   3. substring from first { to last }  (brace-anchored fallback)
 //   4. raw trimmed string (caller will JSON.parse and probably fail loudly)
+// Then runs closeTruncatedJson() to repair dangling arrays/objects from
+// max-tokens truncation by counting unmatched [ { quotes and appending
+// the closers needed.
 export function extractJsonBlock(s: string): string {
+  let raw: string;
   const fenceJson = /```json\s*([\s\S]*?)\s*```/i.exec(s);
-  if (fenceJson) return fenceJson[1].trim();
-  const fenceAny = /```\s*([\s\S]*?)\s*```/.exec(s);
-  if (fenceAny) return fenceAny[1].trim();
-  const first = s.indexOf('{');
-  const last = s.lastIndexOf('}');
-  if (first >= 0 && last > first) return s.slice(first, last + 1);
-  return s.trim();
+  if (fenceJson) raw = fenceJson[1].trim();
+  else {
+    const fenceAny = /```\s*([\s\S]*?)\s*```/.exec(s);
+    if (fenceAny) raw = fenceAny[1].trim();
+    else {
+      const first = s.indexOf('{');
+      const last = s.lastIndexOf('}');
+      raw = first >= 0 && last > first ? s.slice(first, last + 1) : s.trim();
+    }
+  }
+  return closeTruncatedJson(raw);
+}
+
+// If Claude was cut off mid-output (max_tokens), the JSON ends with the
+// last fully-emitted release object but lacks the closing `]` for the
+// releases array and the outer `}`. Walk the string tracking quote/escape
+// state + brace depth, drop any partial trailing object after the last
+// complete one, then append the missing closers. Returns input untouched
+// when the JSON is already balanced.
+function closeTruncatedJson(s: string): string {
+  let inString = false;
+  let escape = false;
+  let depthBrace = 0; // {}
+  let depthBracket = 0; // []
+  let lastCompletePos = -1;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (escape) { escape = false; continue; }
+    if (c === '\\') { escape = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === '{') depthBrace++;
+    else if (c === '}') {
+      depthBrace--;
+      if (depthBrace === 1 && depthBracket === 1) {
+        // We just closed a release object (depth 1 = outer object,
+        // depth bracket 1 = inside the releases array).
+        lastCompletePos = i;
+      }
+    } else if (c === '[') depthBracket++;
+    else if (c === ']') depthBracket--;
+  }
+  if (depthBrace === 0 && depthBracket === 0) return s; // already balanced
+  if (lastCompletePos < 0) return s; // nothing recoverable
+  // Truncate to last complete element + close.
+  let out = s.slice(0, lastCompletePos + 1);
+  // Re-walk to recompute closers (depth state changed).
+  let db = 0, dk = 0, isIn = false, esc = false;
+  for (const c of out) {
+    if (esc) { esc = false; continue; }
+    if (c === '\\') { esc = true; continue; }
+    if (c === '"') { isIn = !isIn; continue; }
+    if (isIn) continue;
+    if (c === '{') db++;
+    else if (c === '}') db--;
+    else if (c === '[') dk++;
+    else if (c === ']') dk--;
+  }
+  // Close brackets first, then braces (releases array → outer object).
+  return out + ']'.repeat(Math.max(0, dk)) + '}'.repeat(Math.max(0, db));
 }
 
 // Compute USD cost of a response. Includes input + output tokens, cache
