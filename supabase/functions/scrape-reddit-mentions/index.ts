@@ -16,11 +16,21 @@ const SOURCE = 'reddit';
 const RATE_LIMIT_PER_HOUR = 60 * 60; // Reddit allows ~60/min OAuth'd
 const BATCH_SIZE = 30;
 
+// Spec subreddit list: r/PokemonTCG, r/sportscards, r/mtgfinance,
+// r/onepiecetcg, r/PkmnTcgCollections.
 const BRAND_SUBREDDITS: Record<string, string[]> = {
-  pokemon: ['PokemonTCG'],
+  pokemon: ['PokemonTCG', 'PkmnTcgCollections'],
   bandai: ['onepiecetcg'],
+  // All sports brands surface in the same subreddit:
   topps: ['sportscards'],
-  // additional brands map here
+  panini: ['sportscards'],
+  bowman: ['sportscards'],
+  upper_deck: ['sportscards'],
+  leaf: ['sportscards'],
+  fanatics: ['sportscards'],
+  donruss: ['sportscards'],
+  wild_card: ['sportscards'],
+  // Magic when we seed the brand: ['mtgfinance']
 };
 
 Deno.serve(withSentry('scrape-reddit-mentions', async (req) => {

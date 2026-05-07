@@ -10,7 +10,10 @@
 
 const CLIENT_ID = Deno.env.get('REDDIT_CLIENT_ID');
 const CLIENT_SECRET = Deno.env.get('REDDIT_CLIENT_SECRET');
-const USER_AGENT = 'alt-art-tracker/0.1 (Phase 1 beta)';
+// Reddit recommends "platform/version by /u/username". Configurable via
+// env so the operator's reddit handle can be substituted without redeploy.
+const USER_AGENT =
+  Deno.env.get('REDDIT_USER_AGENT') ?? 'AltArtTracker/0.1 by /u/altarttracker';
 
 export const isLive = Boolean(CLIENT_ID && CLIENT_SECRET);
 
