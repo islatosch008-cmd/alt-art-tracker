@@ -35,7 +35,18 @@ export default function AdminSetsList() {
 
   return (
     <PageShell>
-      <Stack.Screen options={{ title: 'Sets' }} />
+      <Stack.Screen
+        options={{
+          title: 'Sets',
+          headerRight: () => (
+            <Link href="/admin/sets/new" asChild>
+              <Pressable hitSlop={8} style={{ paddingHorizontal: 12 }}>
+                <Text style={styles.headerNewBtn}>+ New</Text>
+              </Pressable>
+            </Link>
+          ),
+        }}
+      />
 
       <View style={styles.searchBar}>
         <TextInput
@@ -155,6 +166,7 @@ function SetRow({ set }: { set: AdminSetRow }) {
 }
 
 const styles = StyleSheet.create({
+  headerNewBtn: { fontSize: 14, fontWeight: '700', color: '#1e3a8a' },
   searchBar: {
     paddingHorizontal: 16,
     paddingTop: 12,

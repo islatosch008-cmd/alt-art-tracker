@@ -79,6 +79,31 @@ export function useAdminSet(id: string | undefined) {
   });
 }
 
+// Manual creation (always source='manual'). Server-side insert via the
+// authenticated admin user — RLS allows it because public.is_admin().
+export function useCreateAdminSet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Partial<AdminSetRow> & { name: string; brand_id: string }) => {
+      const { error, data } = await supabase
+        .from('sets')
+        .insert({
+          ...input,
+          source: 'manual',
+          source_id: null,
+          last_synced_at: null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'sets'] });
+    },
+  });
+}
+
 // Patch the set; locked_fields is patched as part of the same row update so
 // the lock state and edited values stay consistent.
 export function useUpdateAdminSet() {
