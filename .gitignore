@@ -1,9 +1,14 @@
-# Environment
+# Environment (incl. editor backup/autosave shadows of .env)
 .env
 .env.local
 .env.*.local
 .env.development
 .env.production
+.env.save
+.env.bak
+.env.backup
+.env.swp
+*.save
 
 # Node
 node_modules/
@@ -48,6 +53,8 @@ supabase/.branches/
 supabase/.temp/
 supabase/.env
 supabase/functions/.env
+supabase/functions/.env.save
+supabase/functions/.env.bak
 
 # IDE / OS
 .DS_Store

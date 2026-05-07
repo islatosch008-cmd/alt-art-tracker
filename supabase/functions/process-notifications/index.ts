@@ -24,6 +24,10 @@ type AlertType =
   | 'release_t7'
   | 'release_t1'
   | 'release_t0'
+  | 'drop_d30'
+  | 'drop_d7'
+  | 'drop_d1'
+  | 'drop_d0'
   | 'drop_open'
   | 'heating_up'
   | 'trending';
@@ -47,6 +51,14 @@ function bodyFor(type: AlertType, payload: Payload): string {
       return `${payload.set_name ?? 'Set'} drops TOMORROW. Pre-orders likely sold out fast.${stop}`;
     case 'release_t0':
       return `${payload.set_name ?? 'Set'} drops today.${stop}`;
+    case 'drop_d30':
+      return `${payload.set_name ?? 'Pre-orders'} open in 30 days. Set a reminder.${stop}`;
+    case 'drop_d7':
+      return `${payload.set_name ?? 'Pre-orders'} open in 7 days. Be ready.${stop}`;
+    case 'drop_d1':
+      return `${payload.set_name ?? 'Pre-orders'} open TOMORROW. Pre-orders sell out fast.${stop}`;
+    case 'drop_d0':
+      return `${payload.set_name ?? 'Pre-orders'} open TODAY.${stop}`;
     case 'drop_open':
       return `${payload.set_name ?? 'Pre-orders'} OPEN now.${stop}`;
     case 'heating_up':
