@@ -10,6 +10,8 @@ import {
   View,
 } from 'react-native';
 
+import { Link } from 'expo-router';
+
 import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
 import { useAuth } from '@/lib/auth';
@@ -181,6 +183,20 @@ export default function SettingsScreen() {
           ) : null}
         </View>
 
+        {isAdmin ? (
+          <Link href="/admin" asChild>
+            <Pressable style={({ pressed }) => [styles.adminLink, pressed && styles.adminLinkPressed]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.adminLinkTitle}>Admin tools</Text>
+                <Text style={styles.adminLinkSub}>
+                  Conflicts, sets editor, scrapers dashboard
+                </Text>
+              </View>
+              <Text style={styles.adminLinkChevron}>›</Text>
+            </Pressable>
+          </Link>
+        ) : null}
+
         <View style={styles.placeholder}>
           <Text style={styles.placeholderText}>Preferences UI coming Week 3</Text>
         </View>
@@ -254,6 +270,19 @@ const styles = StyleSheet.create({
   msg: { fontSize: 13, marginTop: 12 },
   error: { color: '#c00' },
   info: { color: '#0a0' },
+  adminLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#1e3a8a',
+    gap: 12,
+  },
+  adminLinkPressed: { opacity: 0.85 },
+  adminLinkTitle: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  adminLinkSub: { color: '#cbd5ff', fontSize: 12, marginTop: 2 },
+  adminLinkChevron: { color: '#fff', fontSize: 28, fontWeight: '300' },
   placeholder: {
     minHeight: 80,
     alignItems: 'center',
