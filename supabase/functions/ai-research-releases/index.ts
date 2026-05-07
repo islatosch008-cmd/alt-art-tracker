@@ -36,6 +36,12 @@ import { captureWarning, withSentry } from '../_shared/sentry.ts';
 
 const SOURCE = 'ai_research';
 const WEEKLY_COST_CAP_USD = 5;
+// Hard-cap pre-flight: the original "skip when spent >= cap" let one over-cap
+// run through (we'd permit a $1.20 run at $4.50 spend, ending at $5.70). We
+// now skip when spent + estimated >= cap, where estimated tracks observed
+// per-run cost (~$1.20 ± in practice). Tune this if the agent's prompt or
+// search budget changes the per-run cost materially.
+const ESTIMATED_RUN_COST_USD = 1.5;
 
 const TARGET_BRANDS_HUMAN = [
   'Topps', 'Panini', 'Bowman', 'Upper Deck', 'Leaf',
@@ -338,11 +344,15 @@ Deno.serve(
       );
     }
 
-    // Cost cap pre-flight
+    // Cost cap pre-flight (hard cap — accounts for projected run cost so we
+    // don't authorize a run that would land us over cap).
     const spentLast7d = await projectedWeeklyCost(admin);
-    if (spentLast7d >= WEEKLY_COST_CAP_USD) {
+    const projected = spentLast7d + ESTIMATED_RUN_COST_USD;
+    if (projected >= WEEKLY_COST_CAP_USD) {
       captureWarning('cost_cap_exceeded', SOURCE, {
         spent_last_7d_usd: spentLast7d,
+        estimated_run_cost_usd: ESTIMATED_RUN_COST_USD,
+        projected_usd: projected,
         cap_usd: WEEKLY_COST_CAP_USD,
       });
       await admin.from('api_request_log').insert({
@@ -355,6 +365,8 @@ Deno.serve(
         ok: true,
         skipped: 'cost_cap_exceeded',
         spent_last_7d_usd: spentLast7d,
+        estimated_run_cost_usd: ESTIMATED_RUN_COST_USD,
+        projected_usd: projected,
         cap_usd: WEEKLY_COST_CAP_USD,
       });
     }
