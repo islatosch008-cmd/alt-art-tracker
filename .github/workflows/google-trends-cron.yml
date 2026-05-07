@@ -1,1 +1,34 @@
+name: google-trends-fetch
 
+on:
+  schedule:
+    # Daily 07:00 UTC. Runs after the morning scrapers (06:00–06:50 UTC) so
+    # popularity scores reflect any new sets that landed overnight before
+    # we pick the top-50.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    # Manual trigger via the Actions tab — useful for one-off backfills.
+
+jobs:
+  fetch:
+    name: Fetch Google Trends → trends_history
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # 50 cards × 12s + overhead ~ 12 min; 30 is generous
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install --quiet pytrends==4.9.2 requests==2.32.0
+
+      - name: Run trends fetcher
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/google_trends_fetch.py
