@@ -1,5 +1,31 @@
 name: google-trends-fetch
 
+# TODO (known issue, deferred 2026-05-08):
+#   Production runs are currently failing with 502 (cost_units=0,
+#   trends_history empty). Two consecutive failures observed:
+#     2026-05-07 13:21 UTC  status=failure
+#     2026-05-08 11:01 UTC  status=failure
+#   Most likely cause: Google detected pytrends as a bot and is
+#   serving the search-trends endpoint a 429/503 that pytrends
+#   surfaces as a generic exception → the script's "errored ==
+#   total" branch logs failure 502.
+#
+#   compute-popularity-scores zeros out gracefully when trends_history
+#   is empty (verified in c6b54cc), so the symptom is silent (Trending
+#   tab still ranks by other signals) but the trends signal is dead.
+#
+#   Investigation deferred post-eBay activation. When picking this
+#   back up, candidate fixes in priority order:
+#     1. Inspect GH Actions log for the actual exception message
+#        (not visible in api_request_log — only the script-level
+#        outcome).
+#     2. Bump SLEEP_BETWEEN_QUERIES_S from 12 → 30+ if Google's bot
+#        detection threshold has tightened.
+#     3. Add a residential proxy via env (HTTP_PROXY) — pytrends
+#        respects standard proxy env vars.
+#     4. Switch to SerpAPI's google-trends endpoint (paid, but
+#        bot-detection-immune) if pytrends remains unreliable.
+
 on:
   schedule:
     # Daily 07:00 UTC. Runs after the morning scrapers (06:00–06:50 UTC) so
