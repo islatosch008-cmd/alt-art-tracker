@@ -380,6 +380,12 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Per-function overrides. eBay calls ebay-deletion-webhook directly (no
+# JWT) — required for eBay's account-deletion notification flow before
+# they grant production API access.
+[functions.ebay-deletion-webhook]
+verify_jwt = false
+
 [analytics]
 # Disabled locally: vector container can't mount the docker socket through Colima.
 # Re-enable once we move to Supabase Cloud or Docker Desktop.
