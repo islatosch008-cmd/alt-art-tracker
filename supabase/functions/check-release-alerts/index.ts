@@ -9,9 +9,11 @@
 // * not already in release_alerts_sent for (user_id, set_id, alert_type)
 
 import { adminClient } from '../_shared/auth.ts';
-import { logApiRequest } from '../_shared/api-log.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
+import { recordOutcome, type ScrapeOutcome } from '../_shared/scraper.ts';
 import { withSentry } from '../_shared/sentry.ts';
+
+const SOURCE = 'check-release-alerts';
 
 const OFFSETS = [30, 7, 1, 0] as const;
 
@@ -39,7 +41,14 @@ Deno.serve(withSentry('check-release-alerts', async (req) => {
       .from('sets')
       .select('id, name, brand_id')
       .eq('release_date', target);
-    if (setsErr) return jsonResponse({ ok: false, error: setsErr.message }, 500);
+    if (setsErr) {
+      await recordOutcome(admin, SOURCE, {
+        kind: 'failure',
+        statusCode: 500,
+        error: `sets fetch (offset ${offset}): ${setsErr.message}`,
+      });
+      return jsonResponse({ ok: false, error: setsErr.message }, 500);
+    }
 
     for (const set of sets ?? []) {
       setsScanned++;
@@ -51,7 +60,14 @@ Deno.serve(withSentry('check-release-alerts', async (req) => {
         .eq('release_alerts_enabled', true)
         .contains('brands', [set.brand_id])
         .contains('release_alert_days', [offset]);
-      if (subErr) return jsonResponse({ ok: false, error: subErr.message }, 500);
+      if (subErr) {
+        await recordOutcome(admin, SOURCE, {
+          kind: 'failure',
+          statusCode: 500,
+          error: `user_preferences fetch: ${subErr.message}`,
+        });
+        return jsonResponse({ ok: false, error: subErr.message }, 500);
+      }
 
       for (const sub of subs ?? []) {
         // Dedup against release_alerts_sent
@@ -97,12 +113,16 @@ Deno.serve(withSentry('check-release-alerts', async (req) => {
     }
   }
 
-  await logApiRequest(admin, {
-    source: 'check-release-alerts',
-    endpoint: 'hourly',
+  // Always success when we complete the loop without DB errors. "0 alerts
+  // today" is normal — a release-alert window only fires when a set's
+  // release_date falls exactly on today+30/7/1/0 days. cost_units captures
+  // notification rows enqueued so dashboards can correlate cron runs to
+  // outbound message volume.
+  await recordOutcome(admin, SOURCE, {
+    kind: 'success',
     statusCode: 200,
-    costUnits: enqueued,
-  });
+    scraped: enqueued,
+  } as ScrapeOutcome);
 
   return jsonResponse({
     ok: true,

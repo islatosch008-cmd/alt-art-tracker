@@ -8,9 +8,11 @@
 // release alert when it ships.
 
 import { adminClient } from '../_shared/auth.ts';
-import { logApiRequest } from '../_shared/api-log.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
+import { recordOutcome, type ScrapeOutcome } from '../_shared/scraper.ts';
 import { withSentry } from '../_shared/sentry.ts';
+
+const SOURCE = 'check-drop-alerts';
 
 const OFFSETS = [30, 7, 1, 0] as const;
 
@@ -43,7 +45,14 @@ Deno.serve(
         .select('id, name, brand_id, pre_order_opens_at')
         .gte('pre_order_opens_at', target)
         .lt('pre_order_opens_at', dateStrPlusDays(offset + 1));
-      if (setsErr) return jsonResponse({ ok: false, error: setsErr.message }, 500);
+      if (setsErr) {
+        await recordOutcome(admin, SOURCE, {
+          kind: 'failure',
+          statusCode: 500,
+          error: `sets fetch (offset ${offset}): ${setsErr.message}`,
+        });
+        return jsonResponse({ ok: false, error: setsErr.message }, 500);
+      }
 
       for (const set of sets ?? []) {
         setsScanned++;
@@ -54,7 +63,14 @@ Deno.serve(
           .eq('drop_alerts_enabled', true)
           .contains('brands', [set.brand_id])
           .contains('drop_alert_days', [offset]);
-        if (subErr) return jsonResponse({ ok: false, error: subErr.message }, 500);
+        if (subErr) {
+          await recordOutcome(admin, SOURCE, {
+            kind: 'failure',
+            statusCode: 500,
+            error: `user_preferences fetch: ${subErr.message}`,
+          });
+          return jsonResponse({ ok: false, error: subErr.message }, 500);
+        }
 
         for (const sub of subs ?? []) {
           const { data: existing } = await admin
@@ -99,12 +115,16 @@ Deno.serve(
       }
     }
 
-    await logApiRequest(admin, {
-      source: 'check-drop-alerts',
-      endpoint: 'daily',
+    // Mirror check-release-alerts: success on every clean run, with
+    // cost_units = notifications enqueued. Drop-alert windows (T-30/7/1/0
+    // off pre_order_opens_at) fire less often than release windows, so
+    // most days will record success+0; that's still a healthy signal
+    // (cron fired, scanned, found nothing matching today).
+    await recordOutcome(admin, SOURCE, {
+      kind: 'success',
       statusCode: 200,
-      costUnits: enqueued,
-    });
+      scraped: enqueued,
+    } as ScrapeOutcome);
 
     return jsonResponse({
       ok: true,

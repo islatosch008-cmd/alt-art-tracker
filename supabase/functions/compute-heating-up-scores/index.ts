@@ -10,11 +10,42 @@
 // pattern as the popularity scorer: only overwrite cards.heating_up_score
 // when at least ONE signal is non-zero, so the rarity-based placeholder
 // keeps surfacing during the cold-start period.
+//
+// COLD-START DESIGN — "missing signal contributes 0" is intentional
+// ----------------------------------------------------------------
+// When a signal source is missing for a card (no Reddit data, no volume
+// history, etc.), that signal contributes 0 to `raw` rather than
+// redistributing its weight to active signals. This biases the
+// heating_up_score downward during the early-data-warmup period — a card
+// with only price signals reads ~25-30 even on a strong move because the
+// volume/reddit zeros drag sigmoid output toward 0.5.
+//
+// We chose this over weight redistribution for two reasons:
+//   1. Conservative scoring during cold-start matches the hasSignal gate
+//      below — we already accept "score is biased low until data fills
+//      in" as the explicit early-warmup behavior. Redistributing weights
+//      would bias scores HIGH from sparse data, making single-source
+//      noise spikes (e.g., one viral Reddit thread on a low-volume card)
+//      look like real heating events.
+//   2. As data sources fill in, scores naturally recalibrate without code
+//      changes. No need to know in advance which subset of signals will
+//      be reliable for which subset of cards.
+//
+// Revisit weight redistribution when EITHER condition is met:
+//   - 3+ signal sources are reliably populated for >50% of tracked cards.
+//     Today (2026-05-09): only price + trends are reliable; volume and
+//     Reddit are sparse (eBay creds pending; Reddit creds pending).
+//   - Score-distribution analysis shows clustering at 25-30 that
+//     correlates with sparse-data cards rather than genuinely cool ones.
+//
+// Decision logged in the audit pass 2026-05-08, ratified in this commit.
 
 import { adminClient } from '../_shared/auth.ts';
-import { logApiRequest } from '../_shared/api-log.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
+import { recordOutcome, type ScrapeOutcome } from '../_shared/scraper.ts';
 import { withSentry } from '../_shared/sentry.ts';
+
+const SOURCE = 'compute-heating-up';
 
 const BATCH_SIZE = 200;
 
@@ -105,7 +136,14 @@ Deno.serve(
       .select('id, current_price, heating_up_score')
       .order('updated_at', { ascending: true })
       .limit(BATCH_SIZE);
-    if (cardErr) return jsonResponse({ ok: false, error: cardErr.message }, 500);
+    if (cardErr) {
+      await recordOutcome(admin, SOURCE, {
+        kind: 'failure',
+        statusCode: 500,
+        error: `cards fetch: ${cardErr.message}`,
+      });
+      return jsonResponse({ ok: false, error: cardErr.message }, 500);
+    }
 
     const now = Date.now();
     const ago30d = now - 30 * 86_400_000;
@@ -208,12 +246,13 @@ Deno.serve(
       }
     }
 
-    await logApiRequest(admin, {
-      source: 'compute-heating-up',
-      endpoint: 'batch',
+    // Success on every clean batch run. cost_units = cards processed for
+    // batch-pacing visibility on /admin/scrapers.
+    await recordOutcome(admin, SOURCE, {
+      kind: 'success',
       statusCode: 200,
-      costUnits: cards?.length ?? 0,
-    });
+      scraped: cards?.length ?? 0,
+    } as ScrapeOutcome);
 
     return jsonResponse({
       ok: true,
