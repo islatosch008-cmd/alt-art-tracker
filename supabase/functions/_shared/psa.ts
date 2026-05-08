@@ -14,10 +14,16 @@
 //
 // Endpoint validation status (confirmed via scripts/psa-probe.ts):
 //   - /pop/GetPSASpecPopulation/{specID}  ✅ 200 — pop report (this file)
+//        Verified end-to-end on 2026-05-08:
+//          probe → corrections → scrape-psa-pop-reports against prod →
+//          10 rows in psa_pop_reports matching PSA's raw response
+//          exactly (Total=100 across grades 1–10). 1 quota unit per card.
 //   - recent sales (APRs)                  ❓ unknown — every candidate
 //                                             path probed returned 404.
 //                                             May be a separate-tier API
 //                                             not included with this token.
+//        scrape-psa-recent-sales short-circuits with 501 + degraded
+//        outcome and burns no quota until a canonical path is confirmed.
 
 const TOKEN = Deno.env.get('PSA_API_TOKEN');
 export const PSA_TOKEN_PRESENT = Boolean(TOKEN);
