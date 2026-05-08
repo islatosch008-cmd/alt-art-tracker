@@ -13,6 +13,7 @@ import { jsonResponse, preflight } from '../_shared/cors.ts';
 import {
   getRecentSales,
   PSA_TOKEN_PRESENT,
+  PsaEndpointNotValidatedError,
   PsaRateLimitedError,
   PsaTokenMissingError,
 } from '../_shared/psa.ts';
@@ -101,6 +102,26 @@ Deno.serve(
       } catch (err) {
         if (err instanceof PsaTokenMissingError) {
           return jsonResponse({ ok: false, error: err.message }, 412);
+        }
+        if (err instanceof PsaEndpointNotValidatedError) {
+          // Short-circuit on the FIRST spec — no point iterating since
+          // every call hits the same unvalidated endpoint and burns no
+          // quota (the helper throws before any HTTP call). Surface as
+          // degraded so /admin/scrapers shows the gap clearly.
+          await recordOutcome(admin, SOURCE, {
+            kind: 'degraded',
+            statusCode: 501,
+            reason: 'recent_sales_endpoint_not_validated',
+            url: 'psa:sales',
+          });
+          return jsonResponse(
+            {
+              ok: false,
+              error: err.message,
+              hint: 'Run scripts/psa-probe.ts to confirm the canonical recent-sales path. PSA APRs may live behind a separate API tier.',
+            },
+            501,
+          );
         }
         if (err instanceof PsaRateLimitedError) {
           await recordOutcome(admin, SOURCE, {
