@@ -2,6 +2,23 @@
 // Writes a score_history row per card with the component breakdown so we
 // can backtest weight tweaks later.
 //
+// PERFORMANCE
+// ===========
+// The previous per-card-loop implementation did ~5 round-trips per card
+// × 200 cards = 1000 round-trips, clocking 75-78s on prod — over the
+// 60s Edge runtime ceiling. This rewrite batches all reads and writes:
+//
+//   1× cards SELECT   (existing — joined to sets for release_date)
+//   3× history reads  (volume / reddit / trends — all card_ids via .in())
+//   1× score_history  bulk INSERT (200 rows in one POST)
+//   1× cards          bulk UPSERT (200 rows in one POST)
+//
+// Total: 6 round-trips per cron tick. Expected wall time < 5s.
+//
+// URL length watch: 200 UUIDs in a PostgREST .in() filter is ~7,200 chars
+// of querystring, comfortably under the typical 8 KB URL ceiling. If
+// BATCH_SIZE grows past ~220, switch to an RPC that takes a uuid[] arg.
+//
 // PHASE-AWARE FORMULA
 // ===================
 // The original formula (price_velocity_24h * 0.30 + price_velocity_7d *
@@ -180,39 +197,91 @@ Deno.serve(
 
     const now = new Date();
     const ago24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    // Trends window: 7d covers any "today vs yesterday" comparison plus
+    // buffer for GH Action irregularity. Per-card we still pick the most-
+    // recent 2 daily points after grouping.
+    const ago7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    let updated = 0;
+    const cardIds = (cards ?? []).map((c) => c.id);
+    if (cardIds.length === 0) {
+      // No cards in batch — record success and short-circuit.
+      await recordOutcome(admin, SOURCE, {
+        kind: 'success',
+        statusCode: 200,
+        scraped: 0,
+      } as ScrapeOutcome);
+      return jsonResponse({ ok: true, cards_processed: 0, cards_updated: 0 });
+    }
+
+    // --- BATCHED HISTORY READS (3 round-trips for the entire batch) ----
+    // Group results by card_id in JS. Cards with no rows just get empty
+    // arrays, which downstream signal helpers already handle as zeros.
+    const [volumeRes, mentionRes, trendsRes] = await Promise.all([
+      admin
+        .from('volume_history')
+        .select('card_id, sales_count, recorded_at')
+        .in('card_id', cardIds)
+        .gte('recorded_at', ago24h.toISOString()),
+      admin
+        .from('reddit_mentions')
+        .select('card_id, mention_count, recorded_at')
+        .in('card_id', cardIds)
+        .gte('recorded_at', ago24h.toISOString()),
+      admin
+        .from('trends_history')
+        .select('card_id, search_interest, date_reported')
+        .in('card_id', cardIds)
+        .eq('region', 'US')
+        .gte('date_reported', ago7d.toISOString().slice(0, 10))
+        .order('date_reported', { ascending: false }),
+    ]);
+
+    type VolumeRowWithCard = VolumeRow & { card_id: string };
+    type MentionRowWithCard = MentionRow & { card_id: string };
+    type TrendRowWithCard = TrendRow & { card_id: string };
+
+    const volumesByCard = new Map<string, VolumeRowWithCard[]>();
+    for (const r of (volumeRes.data ?? []) as VolumeRowWithCard[]) {
+      const arr = volumesByCard.get(r.card_id) ?? [];
+      arr.push(r);
+      volumesByCard.set(r.card_id, arr);
+    }
+    const mentionsByCard = new Map<string, MentionRowWithCard[]>();
+    for (const r of (mentionRes.data ?? []) as MentionRowWithCard[]) {
+      const arr = mentionsByCard.get(r.card_id) ?? [];
+      arr.push(r);
+      mentionsByCard.set(r.card_id, arr);
+    }
+    // Trends: results are sorted desc by date_reported; per-card we take
+    // the first two (today + prior). Map keeps insertion order.
+    const trendsByCard = new Map<string, TrendRowWithCard[]>();
+    for (const r of (trendsRes.data ?? []) as TrendRowWithCard[]) {
+      const arr = trendsByCard.get(r.card_id) ?? [];
+      if (arr.length < 2) arr.push(r);
+      trendsByCard.set(r.card_id, arr);
+    }
+
+    // --- PER-CARD SCORING (in-memory, no I/O) ----------------------------
+    type ScoreHistoryRow = {
+      card_id: string;
+      popularity_score: number;
+      heating_up_score: null;
+      components: Record<string, number>;
+    };
+    type CardUpsertRow = {
+      id: string;
+      popularity_score: number;
+      updated_at: string;
+    };
+    const scoreHistoryRows: ScoreHistoryRow[] = [];
+    const cardUpserts: CardUpsertRow[] = [];
+
+    const nowIso = now.toISOString();
 
     for (const card of cards ?? []) {
-      // Pull just-enough history per card. Each is a small range query so
-      // the overall loop stays acceptable for batch=200.
-      const [volumeRes, mentionRes, trendsRes] = await Promise.all([
-        admin
-          .from('volume_history')
-          .select('sales_count, recorded_at')
-          .eq('card_id', card.id)
-          .gte('recorded_at', ago24h.toISOString())
-          .order('recorded_at', { ascending: false }),
-        admin
-          .from('reddit_mentions')
-          .select('mention_count, recorded_at')
-          .eq('card_id', card.id)
-          .gte('recorded_at', ago24h.toISOString())
-          .order('recorded_at', { ascending: false }),
-        // Trends: most-recent two daily rows (US region only — the only
-        // region the GH Action populates today).
-        admin
-          .from('trends_history')
-          .select('search_interest, date_reported')
-          .eq('card_id', card.id)
-          .eq('region', 'US')
-          .order('date_reported', { ascending: false })
-          .limit(2),
-      ]);
-
-      const volumes = (volumeRes.data ?? []) as VolumeRow[];
-      const mentions = (mentionRes.data ?? []) as MentionRow[];
-      const trends = (trendsRes.data ?? []) as TrendRow[];
+      const volumes = volumesByCard.get(card.id) ?? [];
+      const mentions = mentionsByCard.get(card.id) ?? [];
+      const trends = trendsByCard.get(card.id) ?? [];
 
       // --- PRIMARY SIGNALS ----------------------------------------------
 
@@ -292,26 +361,63 @@ Deno.serve(
         raw,
       };
 
-      // Always log to score_history for backtesting visibility.
-      await admin.from('score_history').insert({
+      scoreHistoryRows.push({
         card_id: card.id,
         popularity_score: score,
         heating_up_score: null,
         components,
       });
+      cardUpserts.push({
+        id: card.id,
+        popularity_score: score,
+        updated_at: nowIso,
+      });
+    }
 
-      // Per option (c): write the score for ALL cards. Cold-start cards
-      // get a metadata-only floor (~50-65); cards with real signal lift
-      // above. Trending top-N naturally surfaces signal-having cards.
-      const { error: updErr } = await admin
-        .from('cards')
-        .update({ popularity_score: score, updated_at: now.toISOString() })
-        .eq('id', card.id);
-      if (updErr) {
-        console.warn(`update failed for ${card.id}: ${updErr.message}`);
-        continue;
+    // --- BATCHED WRITES (2 round-trips for the entire batch) ------------
+    // score_history is append-only — straight insert.
+    if (scoreHistoryRows.length > 0) {
+      const { error: histErr } = await admin
+        .from('score_history')
+        .insert(scoreHistoryRows);
+      if (histErr) {
+        console.warn(`score_history bulk insert failed: ${histErr.message}`);
       }
-      updated++;
+    }
+    // cards updates — fan out 200 partial-column UPDATEs via Promise.all.
+    //
+    // Why not bulk upsert? supabase-js .upsert() sends INSERT ... ON
+    // CONFLICT (id) DO UPDATE; PostgreSQL evaluates the INSERT row first
+    // and rejects it if NOT NULL columns are missing (cards has brand_id,
+    // name, set_id, etc.) — even though the conflict path would only run
+    // the UPDATE half. Result: the bulk upsert silently errored, returning
+    // cards_updated: 0 in our first deploy.
+    //
+    // Fan-out parallelism: 200 partial-column UPDATEs over HTTP/2 keep-
+    // alive run concurrently in ~1-2s. Together with the 4 batched reads
+    // + 1 batched score_history insert, total wall time stays well under
+    // the 60s ceiling. If volume grows past ~500 cards/batch, swap this
+    // for an RPC that does UPDATE ... FROM jsonb_to_recordset() in a
+    // single round-trip.
+    let updated = 0;
+    if (cardUpserts.length > 0) {
+      const updateResults = await Promise.all(
+        cardUpserts.map((u) =>
+          admin
+            .from('cards')
+            .update({ popularity_score: u.popularity_score, updated_at: u.updated_at })
+            .eq('id', u.id),
+        ),
+      );
+      const errors = updateResults
+        .filter((r) => r.error)
+        .map((r) => r.error?.message);
+      if (errors.length > 0) {
+        console.warn(
+          `cards updates: ${errors.length}/${updateResults.length} failed; first: ${errors[0] ?? 'unknown'}`,
+        );
+      }
+      updated = updateResults.length - errors.length;
     }
 
     // Success on every clean batch run. cost_units = cards processed for
