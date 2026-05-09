@@ -89,19 +89,50 @@ export type ActiveItem = {
   condition?: string;
 };
 
-// Hit Browse API for active listings matching `q`. Returns up to `limit`
-// (eBay max 200). Throws EbayKeyMissingError if creds aren't set.
+export type ActiveSearchResult = {
+  items: ActiveItem[];
+  // eBay's `total` field — the COUNT of active listings matching the
+  // query, not the COUNT of items returned. We use this as the supply
+  // signal for compute-heating-up-scores (fewer total = scarcer supply).
+  total: number;
+};
+
+export type ActiveSearchOptions = {
+  // Optional eBay categoryId filter. e.g. '183454' = Trading Card Singles
+  // (under Collectible Card Games). Narrows results to single-card
+  // listings, excludes boxes/lots/sealed product.
+  categoryIds?: string[];
+  // Optional conditionId filter. e.g. '2750' = Graded. Restricts to
+  // graded slabs which are more price-comparable across sellers.
+  conditionIds?: string[];
+};
+
+// Hit Browse API for active listings matching `q`. Returns items + total
+// (eBay's match count, separate from page size). Throws EbayKeyMissingError
+// if creds aren't set; throws EbayRateLimitedError on 429.
+//
+// Default sort is price ASC so items[0] is the lowest-priced match.
 export async function searchActive(
   q: string,
   limit = 50,
-): Promise<ActiveItem[]> {
+  options: ActiveSearchOptions = {},
+): Promise<ActiveSearchResult> {
   const token = await fetchToken(SCOPE_BROWSE);
   const params = new URLSearchParams({
     q,
     limit: String(Math.min(limit, 200)),
-    filter: 'buyingOptions:{FIXED_PRICE}',
-    sort: 'price',
+    sort: 'price', // ASC — lowest first
   });
+  // eBay's filter param is a single string with comma-separated clauses.
+  const filterClauses: string[] = [];
+  if (options.conditionIds?.length) {
+    filterClauses.push(`conditionIds:{${options.conditionIds.join('|')}}`);
+  }
+  if (filterClauses.length > 0) params.set('filter', filterClauses.join(','));
+  if (options.categoryIds?.length) {
+    params.set('category_ids', options.categoryIds.join(','));
+  }
+
   const res = await fetch(`${BROWSE_URL}?${params}`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -115,8 +146,14 @@ export async function searchActive(
   if (!res.ok) {
     throw new Error(`Browse API ${res.status}: ${await res.text()}`);
   }
-  const json = (await res.json()) as { itemSummaries?: ActiveItem[] };
-  return json.itemSummaries ?? [];
+  const json = (await res.json()) as {
+    total?: number;
+    itemSummaries?: ActiveItem[];
+  };
+  return {
+    items: json.itemSummaries ?? [],
+    total: json.total ?? 0,
+  };
 }
 
 export type SoldItem = {

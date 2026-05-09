@@ -18,15 +18,34 @@
 // verify_jwt = false (configured in supabase/config.toml). eBay calls
 // us directly, no JWT in the request.
 //
-// ⚠️ Note on signature scheme: eBay's public docs at
-// developer.ebay.com/marketplace-account-deletion describe an RSA-based
-// signature scheme using a public key fetched from eBay's notification
-// API. This implementation matches the project spec (HMAC-SHA1 with
-// the verification_token as key). If eBay rejects the test challenge
-// or live notifications with a signature error, swap verifySignature()
-// for the RSA-based path — fetch eBay's public key from
-// `https://api.ebay.com/commerce/notification/v1/public_key/{kid}`,
-// parse the X-EBAY-SIGNATURE JSON, RSA-verify against the body.
+// ⚠️ TODO (RSA swap — SCHEDULED for 2026-05-09 morning session):
+//   eBay's public docs at developer.ebay.com/marketplace-account-deletion
+//   describe an RSA-based signature scheme using a public key fetched
+//   from eBay's notification API. This implementation uses HMAC-SHA1
+//   with the verification_token as key (project spec) — eBay's actual
+//   verifier doesn't sign that way, so every real POST 412s.
+//
+//   Confirmed by api_request_log: 10+ ebay_deletion 412 failures in a
+//   single hour on 2026-05-08 evening (id 420-429), all real eBay
+//   validation traffic that we're rejecting.
+//
+//   Deferred to tomorrow's session because:
+//     - 412s aren't blocking the active-listing scraper path
+//     - eBay's retry window is ~24h before they disable our app, so
+//       there's headroom
+//     - RSA verification needs care (cert fetch, kid parsing, OAuth
+//       for the public-key endpoint) — better fresh than rushed
+//
+//   Implementation plan: use the official eBay Node.js Event
+//   Notification SDK (https://github.com/eBay/event-notification-nodejs-sdk)
+//   rather than rolling our own. SDK handles public-key fetch + cache
+//   + RSA-SHA1 verify. Don't reinvent — the kid parsing alone is
+//   non-trivial and the SDK is community-maintained.
+//
+//   Until the swap lands, eBay will keep retrying and these 412s will
+//   keep stacking in api_request_log (and Sentry, after every other
+//   pair). recordOutcome's 2-strike Sentry rule means we get one alert
+//   per pair — noisy but documented.
 //
 // Required env (set as Supabase Edge Function secrets):
 //   EBAY_DELETION_VERIFICATION_TOKEN  64-char alphanumeric. SAME value

@@ -68,10 +68,17 @@ export type ScrapeOutcome =
 
 // Record the run in api_request_log, snapshot HTML on degraded, and fire
 // Sentry only when this failure is the SECOND in a row for the same source.
+//
+// Optional `metadata` argument lets webhook handlers capture sanitized
+// request/response details (method, headers, body, origin IP) so we can
+// diagnose live failures without redeploying with new instrumentation.
+// Callers are responsible for allowlisting safe headers and never
+// including the verification token, Authorization header, or any secret.
 export async function recordOutcome(
   admin: SupabaseClient,
   source: string,
   outcome: ScrapeOutcome,
+  metadata?: Record<string, unknown>,
 ): Promise<void> {
   // Read previous outcome to detect 2-consecutive failures.
   const { data: prev } = await admin
@@ -82,12 +89,20 @@ export async function recordOutcome(
     .limit(1)
     .maybeSingle();
 
-  await admin.from('api_request_log').insert({
+  // Build the insert row conditionally — only include `metadata` when the
+  // caller supplied it AND the column exists in the deployed schema. The
+  // 20260508210000_api_request_log_metadata migration adds the column;
+  // until that's applied, omitting the field keeps the insert valid
+  // against the older schema (PGRST204 otherwise — silent failure
+  // because supabase-js doesn't throw on bad columns).
+  const row: Record<string, unknown> = {
     source,
     endpoint: outcome.kind, // 'success' | 'degraded' | 'failure'
     status_code: outcome.statusCode,
     cost_units: outcome.kind === 'success' ? outcome.scraped : 0,
-  });
+  };
+  if (metadata !== undefined) row.metadata = metadata;
+  await admin.from('api_request_log').insert(row);
 
   if (outcome.kind === 'degraded' && outcome.html) {
     try {
