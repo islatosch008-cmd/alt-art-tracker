@@ -1,6 +1,29 @@
-// Replay verify with captured eBay POST data to figure out what hash
-// algorithm + format actually works. Iterates SHA-1 / SHA-256 against
-// the same key + body + signature.
+// DIAGNOSTIC SCRIPT (not part of normal cron / function flow).
+//
+// WHEN TO USE
+// ===========
+// If ebay-deletion-webhook starts failing verify again (412 spike or
+// Sentry "consecutive failure" alerts), pull the most recent
+// diagnostic snapshot from prod:
+//
+//   select html_content
+//   from public.scraper_html_snapshots
+//   where source = 'ebay_deletion'
+//     and reason = 'verify_returned_false'
+//   order by fetched_at desc
+//   limit 1;
+//
+// The snapshot has body_full, signature_full, parsed_kid, parsed_alg.
+// Paste them into the constants below and run:
+//
+//   npx tsx --env-file=supabase/functions/.env \
+//     scripts/diagnostics/ebay-verify-replay.ts
+//
+// The script fetches the matching public key from eBay and brute-forces
+// SHA-1 / SHA-256 / SHA-384 / SHA-512 to find which hash verifies.
+// Originally caught the SHA-1 issue on 2026-05-09 — eBay uses SHA-1
+// for both RSA and ECDSA, contrary to the "ECDSA → SHA-256 by
+// convention" assumption.
 
 import { createPublicKey, createVerify } from 'node:crypto';
 

@@ -99,10 +99,13 @@ export async function fetchToken(scope: string): Promise<string> {
 // /admin/scrapers dashboard for real-time quota visibility. Endpoint:
 // https://api.ebay.com/developer/analytics/v1_beta/rate_limit/
 //
-// TODO: re-verify whether eBay returns X-EBAY-C-RATELIMIT-* response
-// headers — earlier in this project we believed they didn't, but that
-// was inferred from the public-key endpoint specifically. Browse API
-// responses may carry them; if so, capture into api_request_log.
+// Confirmed 2026-05-09: Browse API responses do NOT carry rate-limit
+// headers. Probed a real /item_summary/search response and the only
+// non-standard headers were rlogid, x-ebay-svc-tracking-data, and
+// x-ebay-pop-id (load-balancer / tracking metadata). No
+// X-EBAY-C-RATELIMIT-*, no X-Quota-*, no Retry-After. Confirms the
+// only path to quota visibility is the getRateLimits Analytics
+// endpoint (P10 above).
 
 export type ActiveItem = {
   itemId: string;

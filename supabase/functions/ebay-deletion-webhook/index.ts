@@ -117,6 +117,43 @@ function invalidatePublicKeyCache(kid: string): void {
   publicKeyCache.delete(kid);
 }
 
+// --- Diagnostic snapshot gating --------------------------------------
+// During the P4 RSA debugging session we wrote a scraper_html_snapshots
+// row on EVERY failure path so we could read errors back via REST. With
+// the webhook now verified working, those writes are mostly noise +
+// storage waste — eBay still occasionally retries failed-validation
+// notifications, and a single 412 fingerprint can spam the table at
+// ~1/min during a real outage.
+//
+// Gate writes to one-per-fingerprint-per-24h. Module-level Map persists
+// while the Edge instance stays warm; cold start = fresh map = first-of-
+// kind write fires once. Acceptable for diagnostics — we only need ONE
+// snapshot per error variant to know what went wrong.
+//
+// Fingerprint = SHA-256(phase + '|' + error_message). SHA-256 hex is
+// stable across invocations as long as the message text is stable.
+const DIAGNOSTIC_DEDUP_MS = 24 * 60 * 60 * 1000;
+const diagnosticSeen = new Map<string, number>();
+
+async function shouldWriteDiagnostic(
+  phase: string,
+  errorMessage: string,
+): Promise<boolean> {
+  const fingerprintBytes = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(`${phase}|${errorMessage}`),
+  );
+  const fingerprint = Array.from(new Uint8Array(fingerprintBytes))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  const lastSeen = diagnosticSeen.get(fingerprint);
+  if (lastSeen != null && Date.now() - lastSeen < DIAGNOSTIC_DEDUP_MS) {
+    return false;
+  }
+  diagnosticSeen.set(fingerprint, Date.now());
+  return true;
+}
+
 // Fetch and cache eBay's public key for a given kid. Throws on fetch
 // failure so the caller can surface to api_request_log as a failure
 // outcome (not a 412 — public-key fetch is our infra, not eBay's
@@ -352,31 +389,35 @@ Deno.serve(
         // back off on 5xx).
         //
         // DIAGNOSTIC capture: persist the error detail to
-        // scraper_html_snapshots so we can read it via REST without
-        // dashboard access. Snapshot rows for 'ebay_deletion' source
-        // get cleaned up by daily-maintenance after 7 days.
-        const diagnostic = {
-          phase: 'verifyEbaySignature',
-          error_message: verifyErr.message,
-          error_name: verifyErr.name,
-          stack_first_3_lines: (verifyErr.stack ?? '').split('\n').slice(0, 3).join(' | '),
-          parsed_kid: parsedSig.kid.slice(0, 32),
-          parsed_alg: parsedSig.alg ?? null,
-          signature_prefix: parsedSig.signature.slice(0, 24),
-          body_byte_length: body.length,
-          body_first_100_chars: body.slice(0, 100),
-        };
-        const diagnosticStr = JSON.stringify(diagnostic, null, 2);
-        try {
-          await admin.from('scraper_html_snapshots').insert({
-            source: SOURCE,
-            url: `https://api.ebay.com/commerce/notification/v1/public_key/${parsedSig.kid}`,
-            reason: 'rsa_verify_threw',
-            html_size_bytes: diagnosticStr.length,
-            html_content: diagnosticStr,
-          });
-        } catch (snapErr) {
-          console.warn(`diagnostic snapshot insert failed: ${(snapErr as Error).message}`);
+        // scraper_html_snapshots ONLY if this fingerprint hasn't been
+        // seen in the last 24h (avoids spamming the table during a
+        // real outage where the same error fires per retry). Cold
+        // starts get a fresh map → at most one duplicate snapshot per
+        // instance restart, which is the right tradeoff.
+        if (await shouldWriteDiagnostic('verifyEbaySignature', verifyErr.message)) {
+          const diagnostic = {
+            phase: 'verifyEbaySignature',
+            error_message: verifyErr.message,
+            error_name: verifyErr.name,
+            stack_first_3_lines: (verifyErr.stack ?? '').split('\n').slice(0, 3).join(' | '),
+            parsed_kid: parsedSig.kid.slice(0, 32),
+            parsed_alg: parsedSig.alg ?? null,
+            signature_prefix: parsedSig.signature.slice(0, 24),
+            body_byte_length: body.length,
+            body_first_100_chars: body.slice(0, 100),
+          };
+          const diagnosticStr = JSON.stringify(diagnostic, null, 2);
+          try {
+            await admin.from('scraper_html_snapshots').insert({
+              source: SOURCE,
+              url: `https://api.ebay.com/commerce/notification/v1/public_key/${parsedSig.kid}`,
+              reason: 'rsa_verify_threw',
+              html_size_bytes: diagnosticStr.length,
+              html_content: diagnosticStr,
+            });
+          } catch (snapErr) {
+            console.warn(`diagnostic snapshot insert failed: ${(snapErr as Error).message}`);
+          }
         }
         console.error(`[ebay-deletion-webhook] verify threw: ${verifyErr.message}`);
         await recordOutcome(admin, SOURCE, {
@@ -393,42 +434,45 @@ Deno.serve(
         // verify routine and figure out what's mismatched). Full body
         // captured because eBay signs the raw body — any byte difference
         // makes verify fail.
-        try {
-          // Compute a SHA-256 of the body for cross-check; if our body
-          // matches what eBay signed, hashes will match what their
-          // signing pipeline produced.
-          const bodyHash = await crypto.subtle.digest(
-            'SHA-256',
-            new TextEncoder().encode(body),
-          );
-          const bodyHashHex = Array.from(new Uint8Array(bodyHash))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('');
-          // Re-fetch the cached key to get the PEM we constructed.
-          // This is informational only; cached lookup is a no-op.
-          const diagnostic = {
-            phase: 'verify_returned_false',
-            parsed_kid: parsedSig.kid,
-            parsed_alg: parsedSig.alg ?? null,
-            signature_full: parsedSig.signature,
-            body_byte_length: body.length,
-            body_full: body,
-            body_sha256_hex: bodyHashHex,
-            request_content_type: req.headers.get('content-type'),
-            request_content_length: req.headers.get('content-length'),
-          };
-          const diagnosticStr = JSON.stringify(diagnostic, null, 2);
-          await admin.from('scraper_html_snapshots').insert({
-            source: SOURCE,
-            url: `https://api.ebay.com/commerce/notification/v1/public_key/${parsedSig.kid}`,
-            reason: 'verify_returned_false',
-            html_size_bytes: diagnosticStr.length,
-            html_content: diagnosticStr,
-          });
-        } catch (snapErr) {
-          console.warn(
-            `412-diagnostic snapshot failed: ${(snapErr as Error).message}`,
-          );
+        //
+        // Gated to one-per-fingerprint-per-24h to avoid noise. Fingerprint
+        // here is just kid + alg since the actual error is "verify
+        // returned false" with no further error message — we'd dedupe
+        // every-single-time otherwise.
+        const fp = `verify_returned_false|${parsedSig.kid}|${parsedSig.alg ?? 'unknown'}`;
+        if (await shouldWriteDiagnostic('verify_returned_false', fp)) {
+          try {
+            const bodyHash = await crypto.subtle.digest(
+              'SHA-256',
+              new TextEncoder().encode(body),
+            );
+            const bodyHashHex = Array.from(new Uint8Array(bodyHash))
+              .map((b) => b.toString(16).padStart(2, '0'))
+              .join('');
+            const diagnostic = {
+              phase: 'verify_returned_false',
+              parsed_kid: parsedSig.kid,
+              parsed_alg: parsedSig.alg ?? null,
+              signature_full: parsedSig.signature,
+              body_byte_length: body.length,
+              body_full: body,
+              body_sha256_hex: bodyHashHex,
+              request_content_type: req.headers.get('content-type'),
+              request_content_length: req.headers.get('content-length'),
+            };
+            const diagnosticStr = JSON.stringify(diagnostic, null, 2);
+            await admin.from('scraper_html_snapshots').insert({
+              source: SOURCE,
+              url: `https://api.ebay.com/commerce/notification/v1/public_key/${parsedSig.kid}`,
+              reason: 'verify_returned_false',
+              html_size_bytes: diagnosticStr.length,
+              html_content: diagnosticStr,
+            });
+          } catch (snapErr) {
+            console.warn(
+              `412-diagnostic snapshot failed: ${(snapErr as Error).message}`,
+            );
+          }
         }
         await recordOutcome(admin, SOURCE, {
           kind: 'failure',

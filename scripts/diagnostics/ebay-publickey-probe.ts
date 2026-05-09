@@ -1,5 +1,13 @@
+// DIAGNOSTIC SCRIPT (not part of normal cron / function flow).
+//
 // One-off probe: figure out which OAuth scope authorizes eBay's
-// notification public-key endpoint.
+// notification public-key endpoint. Use when the webhook starts
+// returning 401/403 from the public-key fetch (suggests scope drift
+// after eBay API changes).
+//
+//   npx tsx --env-file=supabase/functions/.env \
+//     scripts/diagnostics/ebay-publickey-probe.ts
+//
 //
 // Background: ebay-deletion-webhook's POST handler fetched a public
 // key with SCOPE_BROWSE='https://api.ebay.com/oauth/api_scope' and
