@@ -1,5 +1,25 @@
 // Heating Up scorer. Different signal mix than compute-popularity-scores —
-// this one is about ACCELERATION, not absolute hotness. The spec:
+// this one is about ACCELERATION, not absolute hotness.
+//
+// PERFORMANCE
+// ===========
+// Mirrors the e47ed34 batching pattern from compute-popularity-scores.
+// Original per-card-loop did ~4 round-trips per card × 200 cards = 800
+// round-trips, clocking 49-51s on prod — uncomfortably close to the 60s
+// Edge runtime ceiling. Now:
+//
+//   1× cards SELECT
+//   3× history reads  (price / volume / mention — all card_ids via .in())
+//   1× score_history  bulk INSERT (200 rows)
+//   N× cards          UPDATE (only for cards where hasSignal — typically
+//                     0 on prod today; parallelized via Promise.all when
+//                     signal flows in)
+//
+// Total: ~5 round-trips per cron tick when signal is sparse, ~5 + N
+// when it's not. Expected wall time well under the 60s ceiling.
+//
+// SPEC
+// ====
 //
 //   price_velocity_24h, _7d, _30d  — % change over each window
 //   price_acceleration              — (24h velocity − 7d velocity)
@@ -150,34 +170,88 @@ Deno.serve(
     const ago7d = now - 7 * 86_400_000;
     const ago24h = now - 24 * 60 * 60 * 1000;
 
-    let updated = 0;
+    const cardIds = (cards ?? []).map((c) => c.id);
+    if (cardIds.length === 0) {
+      await recordOutcome(admin, SOURCE, {
+        kind: 'success',
+        statusCode: 200,
+        scraped: 0,
+      } as ScrapeOutcome);
+      return jsonResponse({
+        ok: true,
+        cards_processed: 0,
+        cards_updated: 0,
+        cards_unchanged_no_signal: 0,
+      });
+    }
+
+    // --- BATCHED HISTORY READS (3 round-trips for the entire batch) ----
+    // Same pattern as compute-popularity-scores (e47ed34). Fetch the full
+    // 30-day window for all cards in one query each, then group by
+    // card_id in JS for in-memory scoring.
+    const ago30dIso = new Date(ago30d).toISOString();
+    const [priceRes, volumeRes, mentionRes] = await Promise.all([
+      admin
+        .from('price_history')
+        .select('card_id, price, recorded_at')
+        .in('card_id', cardIds)
+        .gte('recorded_at', ago30dIso),
+      admin
+        .from('volume_history')
+        .select('card_id, sales_count, recorded_at')
+        .in('card_id', cardIds)
+        .gte('recorded_at', ago30dIso),
+      admin
+        .from('reddit_mentions')
+        .select('card_id, mention_count, recorded_at')
+        .in('card_id', cardIds)
+        .gte('recorded_at', ago30dIso),
+    ]);
+
+    type PriceRowWithCard = PriceRow & { card_id: string };
+    type VolumeRowWithCard = VolumeRow & { card_id: string };
+    type MentionRowWithCard = MentionRow & { card_id: string };
+
+    const pricesByCard = new Map<string, PriceRowWithCard[]>();
+    for (const r of (priceRes.data ?? []) as PriceRowWithCard[]) {
+      const arr = pricesByCard.get(r.card_id) ?? [];
+      arr.push(r);
+      pricesByCard.set(r.card_id, arr);
+    }
+    // priceAtOrBefore expects rows desc by recorded_at; sort each group
+    // since the batched query doesn't guarantee per-card ordering.
+    for (const arr of pricesByCard.values()) {
+      arr.sort((a, b) => (a.recorded_at < b.recorded_at ? 1 : -1));
+    }
+    const volumesByCard = new Map<string, VolumeRowWithCard[]>();
+    for (const r of (volumeRes.data ?? []) as VolumeRowWithCard[]) {
+      const arr = volumesByCard.get(r.card_id) ?? [];
+      arr.push(r);
+      volumesByCard.set(r.card_id, arr);
+    }
+    const mentionsByCard = new Map<string, MentionRowWithCard[]>();
+    for (const r of (mentionRes.data ?? []) as MentionRowWithCard[]) {
+      const arr = mentionsByCard.get(r.card_id) ?? [];
+      arr.push(r);
+      mentionsByCard.set(r.card_id, arr);
+    }
+
+    // --- PER-CARD SCORING (in-memory, no I/O) ---------------------------
+    type ScoreHistoryRow = {
+      card_id: string;
+      popularity_score: null;
+      heating_up_score: number;
+      components: Record<string, number>;
+    };
+    type CardUpdate = { id: string; heating_up_score: number };
+    const scoreHistoryRows: ScoreHistoryRow[] = [];
+    const cardUpdates: CardUpdate[] = [];
     let unchanged = 0;
 
     for (const card of cards ?? []) {
-      const [priceRes, volumeRes, mentionRes] = await Promise.all([
-        admin
-          .from('price_history')
-          .select('price, recorded_at')
-          .eq('card_id', card.id)
-          .gte('recorded_at', new Date(ago30d).toISOString())
-          .order('recorded_at', { ascending: false }),
-        admin
-          .from('volume_history')
-          .select('sales_count, recorded_at')
-          .eq('card_id', card.id)
-          .gte('recorded_at', new Date(ago30d).toISOString())
-          .order('recorded_at', { ascending: false }),
-        admin
-          .from('reddit_mentions')
-          .select('mention_count, recorded_at')
-          .eq('card_id', card.id)
-          .gte('recorded_at', new Date(ago30d).toISOString())
-          .order('recorded_at', { ascending: false }),
-      ]);
-
-      const prices = (priceRes.data ?? []) as PriceRow[];
-      const volumes = (volumeRes.data ?? []) as VolumeRow[];
-      const mentions = (mentionRes.data ?? []) as MentionRow[];
+      const prices = pricesByCard.get(card.id) ?? [];
+      const volumes = volumesByCard.get(card.id) ?? [];
+      const mentions = mentionsByCard.get(card.id) ?? [];
 
       // Price velocities
       const v24 = pctDelta(card.current_price, priceAtOrBefore(prices, new Date(ago24h)));
@@ -212,8 +286,7 @@ Deno.serve(
         v24, v7, v30, accel, volume_z, reddit_z, raw,
       };
 
-      // Always log to score_history so weight tuning can be backtested.
-      await admin.from('score_history').insert({
+      scoreHistoryRows.push({
         card_id: card.id,
         popularity_score: null,
         heating_up_score: score,
@@ -232,18 +305,46 @@ Deno.serve(
         reddit_z !== 0;
 
       if (hasSignal) {
-        const { error: updErr } = await admin
-          .from('cards')
-          .update({ heating_up_score: score, updated_at: new Date().toISOString() })
-          .eq('id', card.id);
-        if (updErr) {
-          console.warn(`heating_up update failed for ${card.id}: ${updErr.message}`);
-          continue;
-        }
-        updated++;
+        cardUpdates.push({ id: card.id, heating_up_score: score });
       } else {
         unchanged++;
       }
+    }
+
+    // --- BATCHED WRITES -----------------------------------------------
+    // score_history: bulk insert (1 round-trip).
+    if (scoreHistoryRows.length > 0) {
+      const { error: histErr } = await admin
+        .from('score_history')
+        .insert(scoreHistoryRows);
+      if (histErr) {
+        console.warn(`score_history bulk insert failed: ${histErr.message}`);
+      }
+    }
+    // cards updates: parallel partial-column UPDATEs via Promise.all
+    // (NOT bulk upsert — same NOT NULL trap as P1; see e47ed34 commit
+    // message for the full diagnosis). Only signal-having cards are in
+    // cardUpdates, so this is typically tiny on prod.
+    let updated = 0;
+    if (cardUpdates.length > 0) {
+      const updatedAtIso = new Date(now).toISOString();
+      const updateResults = await Promise.all(
+        cardUpdates.map((u) =>
+          admin
+            .from('cards')
+            .update({ heating_up_score: u.heating_up_score, updated_at: updatedAtIso })
+            .eq('id', u.id),
+        ),
+      );
+      const errors = updateResults
+        .filter((r) => r.error)
+        .map((r) => r.error?.message);
+      if (errors.length > 0) {
+        console.warn(
+          `heating_up cards updates: ${errors.length}/${updateResults.length} failed; first: ${errors[0] ?? 'unknown'}`,
+        );
+      }
+      updated = updateResults.length - errors.length;
     }
 
     // Success on every clean batch run. cost_units = cards processed for
