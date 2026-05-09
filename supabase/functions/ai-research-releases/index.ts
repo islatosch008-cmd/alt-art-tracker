@@ -70,7 +70,51 @@ const BRAND_MAP: Record<string, string> = {
   'wild card': 'wild_card',
   wildcard: 'wild_card',
   donruss: 'donruss',
+  // Optic is technically a Panini-owned Donruss sub-line. Collectors
+  // talk about it as part of the "Donruss" ecosystem, so we map both
+  // common name variants to brand_id=donruss.
+  'donruss optic': 'donruss',
+  optic: 'donruss',
+  'panini donruss optic': 'donruss',
   // 'onyx', 'other' → unmapped → skipped with note
+};
+
+// Manufacturer-scope keys (for the steerable runs): mapping brand_id →
+// human-readable + product-line hints the prompt builder uses to nudge
+// the agent toward comprehensive coverage of a single manufacturer.
+const MANUFACTURER_HINTS: Record<string, { display: string; lines: string }> = {
+  topps: {
+    display: 'Topps',
+    lines:
+      'Topps Series 1/2/Update, Chrome, Heritage, Stadium Club, Allen & Ginter, Finest, Tier One, Triple Threads, Definitive, Dynasty, Pristine, plus all Bowman labels (Bowman, Bowman Chrome, Bowman Draft, Bowman Sterling, Bowman Heritage, Bowman Platinum) when prospects mode is off.',
+  },
+  panini: {
+    display: 'Panini',
+    lines:
+      'Prizm, Select, Mosaic, Donruss, Donruss Optic, Contenders, National Treasures, Immaculate, Flawless, Origins, Obsidian, Crown Royale, Spectra, Phoenix, Absolute, Limited, Playbook, Score, Chronicles. Panini-NBA contracts ended 2025-26 — include legacy products that are still current SKUs.',
+  },
+  upper_deck: {
+    display: 'Upper Deck',
+    lines:
+      "Upper Deck Series 1/2, SP Authentic, SPx, MVP, Skybox, Synergy, The Cup, Premier, Black Diamond, Trilogy, O-Pee-Chee. Upper Deck holds the NHL hobby exclusive — heavy hockey weight expected.",
+  },
+  bowman: {
+    display: 'Bowman',
+    lines:
+      'Bowman, Bowman Chrome, Bowman Draft, Bowman Sterling, Bowman Heritage, Bowman Platinum, Bowman Mega Box, Bowman Best, Bowman 1st Edition. MLB-only; emphasize prospect-heavy products which are the high-value tier.',
+  },
+  donruss: {
+    display: 'Donruss / Donruss Optic',
+    lines:
+      'Donruss, Donruss Optic, Donruss Elite, Donruss Rated Rookie sets. Both base Donruss and the Optic premium parallel-heavy line — collectors treat them as one ecosystem.',
+  },
+  fanatics: {
+    display: 'Fanatics Collectibles',
+    lines:
+      'Fanatics-as-brand, NOT Fanatics-as-parent (Topps stays Topps). Include Fanatics Collectibles house releases, Fanatics Live show exclusives (often event-only or limited windows), Fanatics Authentic memorabilia/relic crossover sets, all sports.',
+  },
+  leaf: { display: 'Leaf', lines: 'Leaf Trading Cards (Brian Gray) — Pearl, Metal Draft, Maple, etc.' },
+  wild_card: { display: 'Wild Card', lines: 'Wild Card Matte products, college football/baseball.' },
 };
 
 // Match Claude's enums; box_type 'unknown' becomes null.
@@ -266,25 +310,76 @@ async function recordConflicts(
   return inserted;
 }
 
-function buildPrompts(): { system: string; user: string } {
+type RunOptions = {
+  // brand_id keys to scope to. Empty/undefined = all sports brands.
+  manufacturer_scope?: string[];
+  // Sport keys to scope to. Empty/undefined = all sports.
+  sports_focus?: string[];
+  // Inclusive YYYY-MM-DD bounds. Defaults: today → today+90d (forward
+  // mode for the weekly cron). Override for catalog backfill.
+  date_start?: string;
+  date_end?: string;
+  // Aim-for entry count for the prompt (lower bound). Defaults to "20-60".
+  target_count?: number;
+  // Skip the cost-cap pre-flight check. For explicit operator-triggered
+  // runs (e.g. catalog backfill); keeps the cron protected.
+  bypass_cost_cap?: boolean;
+};
+
+function buildPrompts(opts: RunOptions = {}): { system: string; user: string } {
   const today = new Date().toISOString().slice(0, 10);
-  const ninetyDaysOut = new Date(Date.now() + 90 * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
+  const dateStart = opts.date_start ?? today;
+  const dateEnd =
+    opts.date_end ??
+    new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10);
+
+  // Manufacturer focus block. Single-brand passes get the line-level
+  // hints from MANUFACTURER_HINTS so the agent searches for specific
+  // product lines rather than a generic brand sweep.
+  const scope = opts.manufacturer_scope ?? [];
+  const isFocused = scope.length > 0;
+  const focusBrands = isFocused
+    ? scope.map((k) => MANUFACTURER_HINTS[k]?.display ?? k).join(', ')
+    : TARGET_BRANDS_HUMAN.join(', ');
+  const focusLines = isFocused
+    ? scope.map((k) => MANUFACTURER_HINTS[k]?.lines).filter(Boolean).join(' ')
+    : '';
+
+  // Sports focus.
+  const sportsList = (opts.sports_focus ?? []).join(', ');
+  const sportsClause = sportsList
+    ? `Restrict to these sports only: ${sportsList}.`
+    : 'Across all sports (MLB, NFL, NBA/WNBA, NHL, MLS/UEFA/Premier League, WWE/AEW, NASCAR/F1, UFC, golf, tennis, multi-sport).';
+
+  // Backfill mode: when date_start is in the past, allow released sets.
+  const allowReleased = dateStart < today;
+  const releaseFilterClause = allowReleased
+    ? `Include both upcoming AND already-released sets in the date window — this is a catalog backfill. Do NOT filter out releases that have already shipped.`
+    : `Skip releases that have already shipped (release_date < ${today}).`;
+
+  const targetClause = opts.target_count
+    ? `Target ${opts.target_count}+ entries. Comprehensive coverage of ${focusBrands}'s product lines is more valuable than caution — include every distinct SKU you can confirm. Quality matters but lean toward inclusion when confidence is at least "low".`
+    : `Aim for 20–60 entries. Quality over quantity.`;
+
+  const productLinesClause = focusLines
+    ? `\n\nProduct lines to cover comprehensively: ${focusLines}`
+    : '';
 
   const system = `You are a sports card release researcher.
 
-Your job: find upcoming hobby + retail product releases from these manufacturers — ${TARGET_BRANDS_HUMAN.join(', ')} — across all sports (MLB, NFL, NBA/WNBA, NHL, MLS/UEFA/Premier League, WWE/AEW, NASCAR/F1, UFC, golf, tennis, multi-sport).
+Your job: find hobby + retail product releases from ${focusBrands}.${productLinesClause}
+
+${sportsClause}
 
 Use the web_search tool to consult, in order of preference:
 ${PREFERRED_SOURCES.map((s) => `  - ${s}`).join('\n')}
-Manufacturer press releases on prnewswire.com or businesswire.com count as primary sources. Avoid forums, Reddit, eBay, marketplace listings.
+Manufacturer press releases on prnewswire.com or businesswire.com count as primary sources. The manufacturer's own product page (topps.com, paniniamerica.net, upperdeck.com, fanatics.com/collectibles) is also primary. Avoid forums, Reddit, eBay, marketplace listings.
 
 Output discipline:
 - Return ONE JSON object only. No prose. No markdown fences. No commentary.
 - Top-level shape: { "releases": [ … ] }.
 - Each release object MUST have these keys exactly:
-    name (string), brand (one of: Topps, Panini, Bowman, Upper Deck, Leaf, Fanatics Collect, Wild Card, Onyx, Donruss, other),
+    name (string), brand (one of: Topps, Panini, Bowman, Upper Deck, Leaf, Fanatics Collect, Wild Card, Onyx, Donruss, Donruss Optic, other),
     sport (one of: basketball, baseball, football, hockey, soccer, wrestling, racing, ufc, golf, tennis, multi-sport, other),
     box_type (one of: hobby, retail, blaster, mega, jumbo, choice, breakers_delight, other, unknown),
     release_date ("YYYY-MM-DD" or null),
@@ -297,12 +392,12 @@ Output discipline:
     high — 2+ independent sources from the preferred list agree on the date
     medium — single source, or sources disagree by < 7 days
     low — inferred from manufacturer release patterns (e.g. "Topps Series 1 historically drops mid-Jan")
-- Skip releases that have already shipped (release_date < today).
+- ${releaseFilterClause}
 - Skip Pokemon, Magic, Yu-Gi-Oh, Lorcana, One Piece, Digimon, Dragon Ball — those are covered elsewhere.
 - If you can't confirm a release_date with at least low confidence, omit the entry entirely.
-- Aim for 20–60 entries. Quality over quantity.`;
+- ${targetClause}`;
 
-  const user = `Today is ${today}. Find sports card hobby + retail releases scheduled between today and ${ninetyDaysOut}.
+  const user = `Today is ${today}. Find ${focusBrands} hobby + retail releases with release_date between ${dateStart} and ${dateEnd}.
 
 Return only the JSON object. Do not narrate the search process.`;
 
@@ -344,11 +439,25 @@ Deno.serve(
       );
     }
 
+    // Parse optional request body for steerable params. Empty/missing
+    // body = default behavior (preserves the weekly cron contract).
+    let opts: RunOptions = {};
+    if (req.method === 'POST') {
+      try {
+        const body = (await req.json()) as RunOptions;
+        if (body && typeof body === 'object') opts = body;
+      } catch {
+        // Empty / non-JSON body — cron sends nothing, that's fine.
+      }
+    }
+
     // Cost cap pre-flight (hard cap — accounts for projected run cost so we
-    // don't authorize a run that would land us over cap).
+    // don't authorize a run that would land us over cap). Bypass available
+    // for explicit operator-triggered backfill runs; the cron never sets
+    // this so the weekly $5 envelope stays intact.
     const spentLast7d = await projectedWeeklyCost(admin);
     const projected = spentLast7d + ESTIMATED_RUN_COST_USD;
-    if (projected >= WEEKLY_COST_CAP_USD) {
+    if (projected >= WEEKLY_COST_CAP_USD && !opts.bypass_cost_cap) {
       captureWarning('cost_cap_exceeded', SOURCE, {
         spent_last_7d_usd: spentLast7d,
         estimated_run_cost_usd: ESTIMATED_RUN_COST_USD,
@@ -371,7 +480,7 @@ Deno.serve(
       });
     }
 
-    const { system, user } = buildPrompts();
+    const { system, user } = buildPrompts(opts);
 
     let response;
     try {
@@ -523,6 +632,9 @@ Deno.serve(
 
     return jsonResponse({
       ok: true,
+      scope: opts.manufacturer_scope ?? 'all',
+      sports: opts.sports_focus ?? 'all',
+      date_window: { start: opts.date_start ?? '(today)', end: opts.date_end ?? '(today+90)' },
       candidates: valid.length,
       inserted,
       conflicts_logged: conflictRows,
