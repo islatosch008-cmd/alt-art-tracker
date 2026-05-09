@@ -27,14 +27,17 @@
 //   { "limit": <num> }
 //     Overrides BATCH_SIZE for smoke tests. Capped at BATCH_SIZE so a
 //     typo'd 5000 doesn't burn the daily quota.
-//   { "strategy": "stale" | "popular" }
-//     "stale"   (default — production cron behavior) — order by
-//               last_price_check_at ASC NULLS FIRST so untouched cards
-//               cycle through.
-//     "popular" — order by popularity_score DESC. Useful for smoke tests:
-//               graded-only conditionIds filter rules out raw cards, so
-//               obscure $0.50 commons return 0 results. Targeting popular
-//               Pokemon/sports cards gives a real aggregate signal.
+//   { "tier": "pokemon_top" | "remaining" | "sports" }
+//     Restricts card selection to the named tier (see migration
+//     20260509080000_add_card_tier.sql for tier definitions). Production
+//     crons pass this — pokemon_top fires every 6h, remaining fires
+//     weekly Sunday 06:00 UTC. When set, ordering stays "stale-first"
+//     (oldest last_price_check_at within the tier).
+//   { "strategy": "stale" | "popular" } (legacy, no tier set)
+//     "stale"   (default — pre-tiering production behavior) — order by
+//               last_price_check_at ASC NULLS FIRST across all cards.
+//     "popular" — order by popularity_score DESC. Smoke-test helper.
+//   When BOTH tier and strategy are passed, tier wins.
 
 import { adminClient } from '../_shared/auth.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
@@ -87,31 +90,57 @@ Deno.serve(
       );
     }
 
-    // Optional limit + strategy override from request body. Falls back
-    // to BATCH_SIZE / "stale" when missing or invalid.
+    // Optional limit + tier + strategy overrides from request body.
+    // Falls back to BATCH_SIZE / no-tier / "stale" when missing.
     let limit = BATCH_SIZE;
     let strategy: 'stale' | 'popular' = 'stale';
+    let tier: 'pokemon_top' | 'remaining' | 'sports' | null = null;
     if (req.method === 'POST') {
       try {
-        const body = (await req.json()) as { limit?: unknown; strategy?: unknown };
+        const body = (await req.json()) as {
+          limit?: unknown;
+          strategy?: unknown;
+          tier?: unknown;
+        };
         const raw = Number(body?.limit);
         if (Number.isFinite(raw) && raw > 0) {
           limit = Math.min(Math.floor(raw), BATCH_SIZE);
         }
         if (body?.strategy === 'popular') strategy = 'popular';
+        if (
+          body?.tier === 'pokemon_top' ||
+          body?.tier === 'remaining' ||
+          body?.tier === 'sports'
+        ) {
+          tier = body.tier;
+        }
       } catch {
         // empty/non-JSON body — fine, use defaults.
       }
     }
 
-    const cardsQuery = admin
+    let cardsQuery = admin
       .from('cards')
-      .select('id, name, card_number, set_id, sets(name)');
-    const orderedQuery =
-      strategy === 'popular'
-        ? cardsQuery.order('popularity_score', { ascending: false, nullsFirst: false })
-        : cardsQuery.order('last_price_check_at', { ascending: true, nullsFirst: true });
-    const { data: cards, error: cardErr } = await orderedQuery.limit(limit);
+      .select('id, name, card_number, set_id, tier, sets(name)');
+    if (tier) {
+      // Tier wins over strategy. Cards within a tier are still cycled
+      // by oldest last_price_check_at first, so the tier's full membership
+      // gets covered evenly over the cron's cycle time.
+      cardsQuery = cardsQuery
+        .eq('tier', tier)
+        .order('last_price_check_at', { ascending: true, nullsFirst: true });
+    } else if (strategy === 'popular') {
+      cardsQuery = cardsQuery.order('popularity_score', {
+        ascending: false,
+        nullsFirst: false,
+      });
+    } else {
+      cardsQuery = cardsQuery.order('last_price_check_at', {
+        ascending: true,
+        nullsFirst: true,
+      });
+    }
+    const { data: cards, error: cardErr } = await cardsQuery.limit(limit);
     if (cardErr) {
       const outcome: ScrapeOutcome = {
         kind: 'failure',
@@ -232,7 +261,8 @@ Deno.serve(
       cards_no_results: noResults,
       cards_errored: errored,
       batch_limit: limit,
-      strategy,
+      tier,
+      strategy: tier ? null : strategy,
       summaries,
     });
   }),
