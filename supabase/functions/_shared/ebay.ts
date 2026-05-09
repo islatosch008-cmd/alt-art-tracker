@@ -27,7 +27,7 @@ const BROWSE_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search';
 const INSIGHTS_URL =
   'https://api.ebay.com/buy/marketplace_insights/v1_beta/item_sales/search';
 
-const SCOPE_BROWSE = 'https://api.ebay.com/oauth/api_scope';
+export const SCOPE_BROWSE = 'https://api.ebay.com/oauth/api_scope';
 const SCOPE_INSIGHTS = 'https://api.ebay.com/oauth/api_scope/buy.marketplace.insights';
 
 export class EbayKeyMissingError extends Error {
@@ -44,9 +44,23 @@ export class EbayRateLimitedError extends Error {
   }
 }
 
+// Module-level OAuth token cache. Persists across function invocations
+// while the Edge Function instance stays warm — eBay's client_credentials
+// grant has a SEPARATE 1,000 mints/24h rate limit, so per-request token
+// minting would burn it fast. Tokens TTL 7,200s (2h); we cache for 90%
+// of that with a 60s safety buffer.
 let cachedToken: { value: string; expiresAt: number; scope: string } | null = null;
 
-async function fetchToken(scope: string): Promise<string> {
+// Force the next fetchToken() call to mint a fresh token. Callers should
+// invoke this when an eBay endpoint returns 401 — typically means our
+// cached token was rotated out (rare, but possible during incident
+// recovery). Don't call on 4xx other than 401 — those are about the
+// request, not the token.
+export function invalidateTokenCache(): void {
+  cachedToken = null;
+}
+
+export async function fetchToken(scope: string): Promise<string> {
   if (!CLIENT_ID || !CLIENT_SECRET) throw new EbayKeyMissingError();
 
   // Cache for 90% of expires_in (eBay tokens default 2h). Re-use if scope
@@ -80,6 +94,15 @@ async function fetchToken(scope: string): Promise<string> {
   };
   return cachedToken.value;
 }
+
+// TODO P10: wire eBay Developer Analytics getRateLimits endpoint into
+// /admin/scrapers dashboard for real-time quota visibility. Endpoint:
+// https://api.ebay.com/developer/analytics/v1_beta/rate_limit/
+//
+// TODO: re-verify whether eBay returns X-EBAY-C-RATELIMIT-* response
+// headers — earlier in this project we believed they didn't, but that
+// was inferred from the public-key endpoint specifically. Browse API
+// responses may carry them; if so, capture into api_request_log.
 
 export type ActiveItem = {
   itemId: string;
