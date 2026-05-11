@@ -38,6 +38,18 @@
 //               last_price_check_at ASC NULLS FIRST across all cards.
 //     "popular" — order by popularity_score DESC. Smoke-test helper.
 //   When BOTH tier and strategy are passed, tier wins.
+//
+// SCRAPE FILTERING BEHAVIOR
+//   tier='pokemon_top' | 'remaining': graded-only listings under the
+//     CCG/TCG singles category (183454). Heating-up math assumes
+//     slab-comparable units; the category filter keeps results tight.
+//   tier='sports': drops BOTH category and condition filters. Sport
+//     cards live under "Sports Mem" → "Sports Trading Cards" →
+//     "Singles" (different eBay category tree); applying 183454
+//     returns 0 sport-card listings. Sport flippers also price raw,
+//     not graded. Relies on query specificity (player + set +
+//     card_number) for relevance. See inner comment for the empirical
+//     verification that surfaced this on 2026-05-11.
 
 import { adminClient } from '../_shared/auth.ts';
 import { jsonResponse, preflight } from '../_shared/cors.ts';
@@ -167,7 +179,29 @@ Deno.serve(
 
       const t0 = Date.now();
       try {
-        const result = await searchActive(q, PER_CARD_RESULT_LIMIT, {
+        // FILTER STRATEGY BY TIER
+        // Pokemon (pokemon_top + remaining): graded-only listings under
+        // eBay CCG/TCG singles (183454). Heating-up signal is built around
+        // slab-comparable comps, and the CCG category keeps results tight.
+        //
+        // Sports: drop BOTH filters. CCG category (183454) is the wrong
+        // tree — sport cards live under "Sports Mem" → "Sports Trading
+        // Cards" → "Singles", and applying 183454 filters out 100% of
+        // sport-card listings (verified empirically 2026-05-11 with
+        // Paul Skenes / Ohtani / Konnor Griffin returning total_active=0).
+        // Sport flippers also price raw, not graded, so the graded
+        // condition filter is also wrong-shaped.
+        //
+        // Without category/condition filters, sport queries rely on the
+        // query string (player + set + card_number) to keep matches
+        // relevant. Card number specificity disambiguates from non-card
+        // listings reliably.
+        //
+        // FOLLOW-UP: if median pollution appears in real data, add
+        // sport-specific category filter (eBay 261328 or 215, verify
+        // against live category tree before adding). Don't pre-optimize.
+        const isSports = tier === 'sports';
+        const result = await searchActive(q, PER_CARD_RESULT_LIMIT, isSports ? {} : {
           categoryIds: [CATEGORY_TRADING_CARD_SINGLES],
           conditionIds: [CONDITION_GRADED],
         });
