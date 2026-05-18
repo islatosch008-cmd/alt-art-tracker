@@ -18,10 +18,13 @@ export function useSearchCards(query: string) {
     queryKey: ['search', trimmed],
     enabled: trimmed.length >= MIN_LEN,
     queryFn: async () => {
+      // Selects trending_score (shared TrendingCard shape). Search results
+      // don't surface the score; ordering stays on the always-populated
+      // popularity_score so the result set is stable.
       const { data, error } = await supabase
         .from('cards')
         .select(
-          'id, name, image_url, rarity, card_number, popularity_score, current_price, ebay_avg_price, tcgplayer_market_price, brand_id, sets(name)',
+          'id, name, image_url, rarity, card_number, trending_score, current_price, ebay_avg_price, tcgplayer_market_price, brand_id, sets(name)',
         )
         .ilike('name', `%${escapeLike(trimmed)}%`)
         .order('popularity_score', { ascending: false, nullsFirst: false })

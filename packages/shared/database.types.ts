@@ -180,6 +180,8 @@ export type Database = {
           id: string
           image_url: string | null
           is_sealed: boolean | null
+          justtcg_card_id: string | null
+          last_justtcg_fetch_at: string | null
           last_price_check_at: string | null
           msrp: number | null
           name: string
@@ -187,6 +189,7 @@ export type Database = {
           rarity: string | null
           set_id: string | null
           tcgplayer_market_price: number | null
+          trending_score: number | null
           updated_at: string | null
         }
         Insert: {
@@ -203,6 +206,8 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_sealed?: boolean | null
+          justtcg_card_id?: string | null
+          last_justtcg_fetch_at?: string | null
           last_price_check_at?: string | null
           msrp?: number | null
           name: string
@@ -210,6 +215,7 @@ export type Database = {
           rarity?: string | null
           set_id?: string | null
           tcgplayer_market_price?: number | null
+          trending_score?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -226,6 +232,8 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_sealed?: boolean | null
+          justtcg_card_id?: string | null
+          last_justtcg_fetch_at?: string | null
           last_price_check_at?: string | null
           msrp?: number | null
           name?: string
@@ -233,6 +241,7 @@ export type Database = {
           rarity?: string | null
           set_id?: string | null
           tcgplayer_market_price?: number | null
+          trending_score?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -347,6 +356,47 @@ export type Database = {
           },
         ]
       }
+      justtcg_price_snapshots: {
+        Row: {
+          captured_at: string
+          card_id: string
+          condition: string | null
+          id: number
+          justtcg_card_id: string
+          price: number
+          printing: string | null
+          variant_id: string
+        }
+        Insert: {
+          captured_at?: string
+          card_id: string
+          condition?: string | null
+          id?: number
+          justtcg_card_id: string
+          price: number
+          printing?: string | null
+          variant_id: string
+        }
+        Update: {
+          captured_at?: string
+          card_id?: string
+          condition?: string | null
+          id?: number
+          justtcg_card_id?: string
+          price?: number
+          printing?: string | null
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "justtcg_price_snapshots_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_queue: {
         Row: {
           channel: string
@@ -396,6 +446,7 @@ export type Database = {
           price: number
           recorded_at: string
           source: string
+          total_active: number | null
         }
         Insert: {
           card_id: string
@@ -404,6 +455,7 @@ export type Database = {
           price: number
           recorded_at?: string
           source: string
+          total_active?: number | null
         }
         Update: {
           card_id?: string
@@ -412,6 +464,7 @@ export type Database = {
           price?: number
           recorded_at?: string
           source?: string
+          total_active?: number | null
         }
         Relationships: [
           {
@@ -431,6 +484,7 @@ export type Database = {
           price: number
           recorded_at: string
           source: string
+          total_active: number | null
         }
         Insert: {
           card_id: string
@@ -439,6 +493,7 @@ export type Database = {
           price: number
           recorded_at?: string
           source: string
+          total_active?: number | null
         }
         Update: {
           card_id?: string
@@ -447,6 +502,7 @@ export type Database = {
           price?: number
           recorded_at?: string
           source?: string
+          total_active?: number | null
         }
         Relationships: []
       }
@@ -458,6 +514,7 @@ export type Database = {
           price: number
           recorded_at: string
           source: string
+          total_active: number | null
         }
         Insert: {
           card_id: string
@@ -466,6 +523,7 @@ export type Database = {
           price: number
           recorded_at?: string
           source: string
+          total_active?: number | null
         }
         Update: {
           card_id?: string
@@ -474,6 +532,7 @@ export type Database = {
           price?: number
           recorded_at?: string
           source?: string
+          total_active?: number | null
         }
         Relationships: []
       }
@@ -485,6 +544,7 @@ export type Database = {
           price: number
           recorded_at: string
           source: string
+          total_active: number | null
         }
         Insert: {
           card_id: string
@@ -493,6 +553,7 @@ export type Database = {
           price: number
           recorded_at?: string
           source: string
+          total_active?: number | null
         }
         Update: {
           card_id?: string
@@ -501,6 +562,7 @@ export type Database = {
           price?: number
           recorded_at?: string
           source?: string
+          total_active?: number | null
         }
         Relationships: []
       }

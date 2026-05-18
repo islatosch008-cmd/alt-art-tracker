@@ -8,9 +8,9 @@ import type { TrendingCard } from '@/lib/use-trending';
 const BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
 
 export function TrendingCardRow({ card }: { card: TrendingCard }) {
-  const score = card.popularity_score ?? 0;
-  // Cap at 100 — placeholder backfill can produce 100+ until the real
-  // sigmoid-normalized algorithm lands. Cosmetic only.
+  const score = card.trending_score ?? 0;
+  // trending_score is already normalized to 0..100 by compute-trending;
+  // the Math.min cap is a harmless belt-and-suspenders guard.
   const scoreText = score > 0 ? Math.min(100, Math.round(score)).toString() : '—';
   const setName = card.sets?.name ?? '';
 

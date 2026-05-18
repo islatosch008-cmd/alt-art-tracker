@@ -5,12 +5,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
-
-import { Link } from 'expo-router';
 
 import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
@@ -18,11 +17,14 @@ import { useAuth } from '@/lib/auth';
 import { confirmPhoneVerify, startPhoneVerify } from '@/lib/phone';
 import { formatPhoneDisplay, normalizeUSPhone } from '@/lib/phone-format';
 import { useIsAdmin } from '@/lib/use-is-admin';
+import { usePreferences, useUpdatePreferences } from '@/lib/use-preferences';
 import { useProfile } from '@/lib/use-profile';
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const { data: profile, isLoading } = useProfile();
+  const { data: prefs, isLoading: prefsLoading } = usePreferences();
+  const updatePrefs = useUpdatePreferences();
   const isAdmin = useIsAdmin();
   const qc = useQueryClient();
 
@@ -183,22 +185,43 @@ export default function SettingsScreen() {
           ) : null}
         </View>
 
-        {isAdmin ? (
-          <Link href="/admin" asChild>
-            <Pressable style={({ pressed }) => [styles.adminLink, pressed && styles.adminLinkPressed]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.adminLinkTitle}>Admin tools</Text>
-                <Text style={styles.adminLinkSub}>
-                  Conflicts, sets editor, scrapers dashboard
-                </Text>
-              </View>
-              <Text style={styles.adminLinkChevron}>›</Text>
-            </Pressable>
-          </Link>
-        ) : null}
-
-        <View style={styles.placeholder}>
-          <Text style={styles.placeholderText}>Preferences UI coming Week 3</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>SMS notifications</Text>
+          {prefsLoading ? (
+            <ActivityIndicator />
+          ) : !prefs ? (
+            <Text style={styles.hint}>Preferences unavailable.</Text>
+          ) : (
+            <View style={{ marginTop: 4 }}>
+              <ToggleRow
+                label="SMS notifications"
+                hint="Master switch for all text alerts."
+                value={prefs.sms_enabled}
+                disabled={updatePrefs.isPending}
+                onChange={(v) => updatePrefs.mutate({ sms_enabled: v })}
+              />
+              <ToggleRow
+                label="Drop reminders"
+                hint="Texts before a pre-order window opens."
+                value={prefs.drop_alerts_enabled}
+                disabled={updatePrefs.isPending || !prefs.sms_enabled}
+                onChange={(v) => updatePrefs.mutate({ drop_alerts_enabled: v })}
+              />
+              <ToggleRow
+                label="Release reminders"
+                hint="Texts before a set's release date."
+                value={prefs.release_alerts_enabled}
+                disabled={updatePrefs.isPending || !prefs.sms_enabled}
+                onChange={(v) => updatePrefs.mutate({ release_alerts_enabled: v })}
+                last
+              />
+            </View>
+          )}
+          {updatePrefs.isError ? (
+            <Text style={[styles.msg, styles.error]}>
+              Could not save — {(updatePrefs.error as Error).message}
+            </Text>
+          ) : null}
         </View>
 
         <Pressable style={styles.signOut} onPress={() => void signOut()}>
@@ -206,6 +229,32 @@ export default function SettingsScreen() {
         </Pressable>
       </ScrollView>
     </PageShell>
+  );
+}
+
+function ToggleRow({
+  label,
+  hint,
+  value,
+  disabled,
+  onChange,
+  last,
+}: {
+  label: string;
+  hint: string;
+  value: boolean;
+  disabled?: boolean;
+  onChange: (v: boolean) => void;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.toggleRow, last && styles.toggleRowLast]}>
+      <View style={styles.toggleText}>
+        <Text style={styles.toggleLabel}>{label}</Text>
+        <Text style={styles.hint}>{hint}</Text>
+      </View>
+      <Switch value={value} onValueChange={onChange} disabled={disabled} />
+    </View>
   );
 }
 
@@ -270,29 +319,18 @@ const styles = StyleSheet.create({
   msg: { fontSize: 13, marginTop: 12 },
   error: { color: '#c00' },
   info: { color: '#0a0' },
-  adminLink: {
+  toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#1e3a8a',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
     gap: 12,
   },
-  adminLinkPressed: { opacity: 0.85 },
-  adminLinkTitle: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  adminLinkSub: { color: '#cbd5ff', fontSize: 12, marginTop: 2 },
-  adminLinkChevron: { color: '#fff', fontSize: 28, fontWeight: '300' },
-  placeholder: {
-    minHeight: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e5e5',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-  },
-  placeholderText: { color: '#999', fontSize: 14 },
+  toggleRowLast: { borderBottomWidth: 0, paddingBottom: 0 },
+  toggleText: { flex: 1 },
+  toggleLabel: { fontSize: 15, fontWeight: '600', color: '#111' },
   signOut: {
     paddingVertical: 12,
     borderRadius: 8,

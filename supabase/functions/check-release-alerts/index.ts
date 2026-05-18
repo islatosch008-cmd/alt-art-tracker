@@ -1,6 +1,8 @@
 // Hourly cron — find sets whose release_date is exactly today+30/7/1/0 days
-// out, and for each subscriber whose preferences match, enqueue a release_tN
-// notification per their alert_channels. Idempotent via release_alerts_sent.
+// out, and for each subscriber whose preferences match, enqueue one SMS
+// release_tN notification. Idempotent via release_alerts_sent.
+//
+// 2.0 is SMS-only: exactly one channel:'sms' row per subscriber per alert.
 //
 // Subscriber match rules (per spec):
 // * user_preferences.release_alerts_enabled = true
@@ -56,7 +58,7 @@ Deno.serve(withSentry('check-release-alerts', async (req) => {
       // Find subscribers who want this brand + this offset.
       const { data: subs, error: subErr } = await admin
         .from('user_preferences')
-        .select('user_id, alert_channels, brands, release_alert_days')
+        .select('user_id, brands, release_alert_days')
         .eq('release_alerts_enabled', true)
         .contains('brands', [set.brand_id])
         .contains('release_alert_days', [offset]);
@@ -83,21 +85,19 @@ Deno.serve(withSentry('check-release-alerts', async (req) => {
           continue;
         }
 
-        // Enqueue one row per channel they want.
-        const channels: string[] = (sub.alert_channels as string[] | null) ?? ['push'];
+        // 2.0 is SMS-only — enqueue exactly one sms row per subscriber.
         const payload = {
           set_id: set.id,
           set_name: set.name,
           set_brand: set.brand_id,
           days_until: offset,
         };
-        const rows = channels.map((channel) => ({
+        const { error: enqErr } = await admin.from('notification_queue').insert({
           user_id: sub.user_id,
           type: `release_${alertType}`,
           payload,
-          channel,
-        }));
-        const { error: enqErr } = await admin.from('notification_queue').insert(rows);
+          channel: 'sms',
+        });
         if (enqErr) {
           console.warn(`enqueue failed for ${sub.user_id}/${set.id}: ${enqErr.message}`);
           continue;
@@ -108,7 +108,7 @@ Deno.serve(withSentry('check-release-alerts', async (req) => {
           set_id: set.id,
           alert_type: alertType,
         });
-        enqueued += rows.length;
+        enqueued += 1;
       }
     }
   }

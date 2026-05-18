@@ -1,6 +1,8 @@
 // Daily cron — find sets whose pre_order_opens_at is exactly today+30/7/1/0
-// days out, enqueue a drop_tN notification per matching subscriber's
-// alert_channels, dedup via drop_alerts_sent.
+// days out, enqueue one SMS drop_tN notification per matching subscriber,
+// dedup via drop_alerts_sent.
+//
+// 2.0 is SMS-only: exactly one channel:'sms' row per subscriber per alert.
 //
 // Mirrors check-release-alerts but on pre_order_opens_at + drop_alert_days
 // + drop_alerts_sent. The two run side-by-side: a set with both fields
@@ -59,7 +61,7 @@ Deno.serve(
 
         const { data: subs, error: subErr } = await admin
           .from('user_preferences')
-          .select('user_id, alert_channels, brands, drop_alert_days')
+          .select('user_id, brands, drop_alert_days')
           .eq('drop_alerts_enabled', true)
           .contains('brands', [set.brand_id])
           .contains('drop_alert_days', [offset]);
@@ -85,7 +87,7 @@ Deno.serve(
             continue;
           }
 
-          const channels: string[] = (sub.alert_channels as string[] | null) ?? ['push'];
+          // 2.0 is SMS-only — enqueue exactly one sms row per subscriber.
           const payload = {
             set_id: set.id,
             set_name: set.name,
@@ -93,13 +95,12 @@ Deno.serve(
             days_until: offset,
             pre_order_opens_at: set.pre_order_opens_at,
           };
-          const rows = channels.map((channel) => ({
+          const { error: enqErr } = await admin.from('notification_queue').insert({
             user_id: sub.user_id,
             type: `drop_${alertType}`,
             payload,
-            channel,
-          }));
-          const { error: enqErr } = await admin.from('notification_queue').insert(rows);
+            channel: 'sms',
+          });
           if (enqErr) {
             console.warn(`drop enqueue failed for ${sub.user_id}/${set.id}: ${enqErr.message}`);
             continue;
@@ -110,7 +111,7 @@ Deno.serve(
             set_id: set.id,
             alert_type: alertType,
           });
-          enqueued += rows.length;
+          enqueued += 1;
         }
       }
     }

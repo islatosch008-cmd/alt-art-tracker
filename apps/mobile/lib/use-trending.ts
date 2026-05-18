@@ -8,7 +8,10 @@ export type TrendingCard = {
   image_url: string | null;
   rarity: string | null;
   card_number: string | null;
-  popularity_score: number | null;
+  // Phase 2: Trending now ranks by trending_score (JustTCG price momentum
+  // + eBay active-listing volume), written by the compute-trending Edge
+  // Function. Replaces the v1 popularity_score.
+  trending_score: number | null;
   current_price: number | null;
   ebay_avg_price: number | null;
   tcgplayer_market_price: number | null;
@@ -25,9 +28,9 @@ export function useTrendingCards(brandId: string | null) {
       let q = supabase
         .from('cards')
         .select(
-          'id, name, image_url, rarity, card_number, popularity_score, current_price, ebay_avg_price, tcgplayer_market_price, brand_id, sets(name)',
+          'id, name, image_url, rarity, card_number, trending_score, current_price, ebay_avg_price, tcgplayer_market_price, brand_id, sets(name)',
         )
-        .order('popularity_score', { ascending: false, nullsFirst: false })
+        .order('trending_score', { ascending: false, nullsFirst: false })
         .limit(PAGE);
 
       if (brandId) q = q.eq('brand_id', brandId);

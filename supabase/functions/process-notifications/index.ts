@@ -1,13 +1,12 @@
-// Drain notification_queue. Routes by channel, respects quiet hours, enforces
-// the per-user 100/month SMS cap, marks rows sent/skipped/failed.
+// Drain notification_queue. Respects quiet hours, enforces the per-user
+// 100/month SMS cap, marks rows sent/skipped/failed.
 //
 // Run every minute via pg_cron (commit #5). Each invocation handles up to
 // BATCH_SIZE pending rows.
 //
-// Coverage so far:
-// * sms via Twilio (live when TWILIO_* env is present, dev-log otherwise)
-// * email + push are stubbed and marked 'skipped' until Resend / Expo Push
-//   token storage are wired (Resend in Week 4, push token storage TBD).
+// 2.0 is SMS-only: every queued notification is sent via Twilio (live when
+// TWILIO_* env is present, dev-log otherwise). Any row with a non-'sms'
+// channel is treated as malformed and marked 'failed'.
 
 import { adminClient } from '../_shared/auth.ts';
 import { logApiRequest } from '../_shared/api-log.ts';
@@ -18,7 +17,7 @@ import { sendSms } from '../_shared/twilio-sms.ts';
 const BATCH_SIZE = 50;
 const SMS_MONTHLY_CAP = 100;
 
-type Channel = 'sms' | 'push' | 'email';
+type Channel = 'sms';
 type AlertType =
   | 'release_t30'
   | 'release_t7'
@@ -135,16 +134,8 @@ Deno.serve(withSentry('process-notifications', async (req) => {
     const type = row.type as AlertType;
     const payload = (row.payload ?? {}) as Payload;
 
-    if (channel === 'email' || channel === 'push') {
-      // Not wired yet — skip cleanly so the row leaves the pending pool.
-      await admin
-        .from('notification_queue')
-        .update({ status: 'skipped', sent_at: new Date().toISOString() })
-        .eq('id', row.id);
-      skipped++;
-      continue;
-    }
-
+    // 2.0 is SMS-only. Anything else is a malformed row — fail it so it
+    // leaves the pending pool and is visible in failure counts.
     if (channel !== 'sms') {
       await admin
         .from('notification_queue')

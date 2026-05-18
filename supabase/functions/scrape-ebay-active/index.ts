@@ -231,11 +231,21 @@ Deno.serve(
           continue;
         }
 
+        // Persist eBay's real active-listing match count alongside the
+        // median price. total_active is the genuine supply signal that
+        // compute-trending reads; only ebay_active rows carry it. If
+        // eBay's total isn't a finite number for this card, leave the
+        // column NULL rather than inventing a value.
+        const totalActive =
+          Number.isFinite(result.total) && result.total >= 0
+            ? result.total
+            : null;
         await admin.from('price_history').insert({
           card_id: card.id,
           price: Math.round(med * 100) / 100,
           source: SOURCE,
           recorded_at: now,
+          total_active: totalActive,
         });
         await admin
           .from('cards')

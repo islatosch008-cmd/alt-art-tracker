@@ -24,7 +24,7 @@ export default function TrendingScreen() {
 
   return (
     <PageShell>
-      <ScreenHeader title="Trending Now" subtitle="Cards moving today" showSearch />
+      <ScreenHeader title="Trending Now" subtitle="Cards moving today" />
       <BrandChips brands={brands.data} selected={brand} onSelect={setBrand} />
 
       {trending.isLoading ? (
@@ -60,8 +60,8 @@ export default function TrendingScreen() {
           }
           ListFooterComponent={
             <Text style={styles.footer}>
-              Placeholder ranking by rarity + recency. Real prices and signals wire
-              up Week 2.
+              Ranked by trending score — JustTCG price momentum plus eBay
+              active-listing volume.
             </Text>
           }
         />

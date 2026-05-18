@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -7,8 +8,10 @@ import {
   View,
 } from 'react-native';
 
+import { BrandChips } from '@/components/brand-chips';
 import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
+import { useBrands } from '@/lib/use-brands';
 import {
   daysUntil,
   groupReleases,
@@ -18,13 +21,26 @@ import {
 
 export default function ReleasesScreen() {
   const { data, isLoading, isRefetching, error, refetch } = useReleases();
+  const { data: brands } = useBrands();
+
+  // null = "All"; otherwise a brands.id to narrow by TCG/brand.
+  const [brandId, setBrandId] = useState<string | null>(null);
+
+  const filtered = useMemo(
+    () => (brandId ? (data ?? []).filter((s) => s.brand_id === brandId) : (data ?? [])),
+    [data, brandId],
+  );
 
   const headerEl = (
-    <ScreenHeader
-      title="Releases"
-      subtitle={`${data?.length ?? 0} set${data?.length === 1 ? '' : 's'} in the catalog`}
-      showSearch
-    />
+    <>
+      <ScreenHeader
+        title="Upcoming Drops"
+        subtitle={`${filtered.length} set${filtered.length === 1 ? '' : 's'}${
+          brandId ? ' in this brand' : ' in the catalog'
+        }`}
+      />
+      <BrandChips brands={brands} selected={brandId} onSelect={setBrandId} />
+    </>
   );
 
   if (isLoading) {
@@ -48,7 +64,7 @@ export default function ReleasesScreen() {
     );
   }
 
-  const sections = groupReleases(data ?? []);
+  const sections = groupReleases(filtered);
 
   return (
     <PageShell>

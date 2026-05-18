@@ -11,7 +11,8 @@ const BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
 // Used in the Trending and Heating Up feeds with FlatList numColumns from
 // useGridCols(). For dense list contexts (search results) use TrendingCardRow.
 export function TrendingCardCell({ card }: { card: TrendingCard }) {
-  const score = card.popularity_score ?? 0;
+  // trending_score is already normalized to 0..100 by compute-trending.
+  const score = card.trending_score ?? 0;
   const scoreText = score > 0 ? Math.min(100, Math.round(score)).toString() : '—';
   const setName = card.sets?.name ?? '';
 

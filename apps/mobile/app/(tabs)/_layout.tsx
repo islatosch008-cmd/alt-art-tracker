@@ -28,16 +28,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="heating-up"
-        options={{
-          title: 'Heating Up',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="flame.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="releases"
         options={{
-          title: 'Releases',
+          title: 'Upcoming Drops',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
       />
