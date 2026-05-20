@@ -146,11 +146,9 @@ export type CardQuery =
 // batch size. Returns the matched cards with their current-price
 // variants; unmatched queries are simply absent from the response.
 //
-// REQUEST BODY SHAPE — UNVERIFIED. The body below is sent as
-// { cards: [...] }. This is the ASSUMED/EXPECTED shape; it has NOT been
-// confirmed against the live JustTCG API. Confirm against a real
-// response before the first production run and adjust if JustTCG
-// expects a different key/structure.
+// REQUEST BODY SHAPE — confirmed live 2026-05-20: the body is the bare
+// array of lookup objects, not wrapped under any key. JustTCG's error
+// when wrapped: "Batch request body must be an array of lookup objects."
 export async function getCardsBatch(
   queries: CardQuery[],
 ): Promise<JustTcgCard[]> {
@@ -162,8 +160,7 @@ export async function getCardsBatch(
   }
   const env = await request<JustTcgCard[]>('/cards', {
     method: 'POST',
-    // TODO: verify POST /cards request body shape ({ cards: [...] }) against the live JustTCG API before first production run.
-    body: JSON.stringify({ cards: queries }),
+    body: JSON.stringify(queries),
   });
   return env.data ?? [];
 }
