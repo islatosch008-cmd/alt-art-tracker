@@ -88,6 +88,31 @@ function clamp(x: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, x));
 }
 
+// PostgREST renders `.in()` as a URL query, so a 500-id list overflows the
+// HTTP/2 frame/stream limits and the request dies with "stream error
+// detected: unspecific protocol error detected". Chunk the IN list into
+// smaller batches and concatenate. Each chunk preserves the ordering of
+// its parent query, and since each card_id appears in exactly one chunk,
+// per-card row order (e.g. recorded_at DESC) is intact.
+const IN_CHUNK = 50;
+
+async function chunkedSelectIn<T>(
+  ids: string[],
+  build: (chunk: string[]) => PromiseLike<{
+    data: T[] | null;
+    error: { message: string } | null;
+  }>,
+): Promise<{ data: T[]; error: { message: string } | null }> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const chunk = ids.slice(i, i + IN_CHUNK);
+    const res = await build(chunk);
+    if (res.error) return { data: out, error: res.error };
+    if (res.data) out.push(...res.data);
+  }
+  return { data: out, error: null };
+}
+
 type SnapshotRow = {
   card_id: string;
   variant_id: string;
@@ -162,20 +187,28 @@ Deno.serve(
       now - VOLUME_WINDOW_DAYS * 86_400_000,
     ).toISOString();
 
-    // --- BATCHED SIGNAL READS (2 round-trips for the whole batch) --------
+    // --- BATCHED SIGNAL READS (chunked IN to stay within HTTP/2 limits) --
     const [snapRes, activeRes] = await Promise.all([
-      admin
-        .from('justtcg_price_snapshots')
-        .select('card_id, variant_id, price, captured_at')
-        .in('card_id', cardIds)
-        .gte('captured_at', momentumCutoff),
-      admin
-        .from('price_history')
-        .select('card_id, total_active, recorded_at')
-        .in('card_id', cardIds)
-        .eq('source', 'ebay_active')
-        .gte('recorded_at', volumeCutoff)
-        .order('recorded_at', { ascending: false }),
+      chunkedSelectIn<SnapshotRow>(cardIds, (chunk) =>
+        admin
+          .from('justtcg_price_snapshots')
+          .select('card_id, variant_id, price, captured_at')
+          .in('card_id', chunk)
+          .gte('captured_at', momentumCutoff),
+      ),
+      chunkedSelectIn<{
+        card_id: string;
+        total_active: number | null;
+        recorded_at: string;
+      }>(cardIds, (chunk) =>
+        admin
+          .from('price_history')
+          .select('card_id, total_active, recorded_at')
+          .in('card_id', chunk)
+          .eq('source', 'ebay_active')
+          .gte('recorded_at', volumeCutoff)
+          .order('recorded_at', { ascending: false }),
+      ),
     ]);
     if (snapRes.error) {
       await recordOutcome(admin, SOURCE, {
