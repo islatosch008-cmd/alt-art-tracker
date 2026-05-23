@@ -1,15 +1,20 @@
-// Monthly AI research agent. Asks Claude (with web_search) to find TCG
-// set/expansion releases in the next ~90 days, validates the JSON, and
-// inserts new rows into `sets` directly with source='ai_research'.
+// Biweekly AI research agent. Asks Claude (with web_search) to find upcoming
+// card releases — across BOTH trading card games (TCG) AND sports cards —
+// in the next ~90 days, validates the JSON, and inserts new rows into `sets`
+// directly with source='ai_research'.
 //
-// Per spec (2.0 rebuild — Phase 3):
-// - 1st of month, 9 AM UTC (cron schedule in a migration)
+// Per spec (2.0 rebuild — Phase 3, widened to TCG + sports):
+// - Runs on the cron schedule defined in a migration.
 // - Model: claude-sonnet-4-5 (via ANTHROPIC_MODEL env)
 // - Tool: web_search_20250305 (Anthropic built-in)
 // - Confidence: high=2+ sources agree, medium=single source, low=inferred
-// - Skip already-released items
-// - Targets TCG releases (Pokemon, Magic, Bandai TCGs). Sports releases are
-//   covered separately by scrape-cardboardconnection-releases.
+// - Skip already-released items (forward mode)
+// - Coverage: BOTH TCG and sports cards. TCG is the priority (the bigger
+//   earner) and gets slightly deeper coverage, but major sports card
+//   releases are included too — each vertical has a dedicated partner.
+//     TCG:    Pokemon, Magic, Bandai TCGs (One Piece / Dragon Ball / Digimon
+//             / Union Arena / Gundam).
+//     Sports: Topps, Panini, Bowman, Upper Deck, Donruss, Leaf, Fanatics.
 // - Cost cap: $5/run-window. Pre-flight check on api_request_log; exit
 //   cleanly with Sentry warning if projected total would exceed.
 // - Three-outcome model: success | degraded (0 returned) | failure (API err)
@@ -18,6 +23,11 @@
 // - Dedup: exact source_id (re-run) or fuzzy name+date match. On a fuzzy
 //   match against an existing row we skip (no duplicate insert); the old
 //   set_conflicts per-field disagreement queue was removed in the 2.0 strip.
+// - Self-prune: after the insert/refresh pass, deletes ai_research rows whose
+//   release_date is already in the past. Clears the ~194 stale v1 sports rows
+//   on the next run and keeps the calendar to actionable upcoming releases.
+//   Scoped to source='ai_research' AND release_date < today (UTC) so catalog
+//   sets (tcgcsv / pokemon_tcg_api) are never touched.
 
 import {
   AnthropicKeyMissingError,
@@ -51,7 +61,10 @@ const MONTHLY_COST_CAP_USD = 5;
 // search budget changes the per-run cost materially.
 const ESTIMATED_RUN_COST_USD = 1.5;
 
+// Coverage spans BOTH TCG and sports. TCG is listed first and is the
+// priority (slightly deeper coverage in the prompt); sports follows.
 const TARGET_BRANDS_HUMAN = [
+  // --- Trading card games (priority) ---
   'Pokemon TCG',
   'Magic: The Gathering',
   'One Piece Card Game',
@@ -59,9 +72,18 @@ const TARGET_BRANDS_HUMAN = [
   'Digimon Card Game',
   'Union Arena',
   'Gundam Card Game',
+  // --- Sports cards ---
+  'Topps',
+  'Panini',
+  'Bowman',
+  'Upper Deck',
+  'Donruss',
+  'Leaf',
+  'Fanatics',
 ];
 
 const PREFERRED_SOURCES = [
+  // --- TCG sources (priority) ---
   'pokemon.com',
   'pokebeach.com',
   'magic.wizards.com',
@@ -73,13 +95,30 @@ const PREFERRED_SOURCES = [
   'digimoncard.com',
   'unionarena-tcg.com',
   'gundam-gcg.com',
+  // --- Sports card sources ---
+  'cardboardconnection.com',
+  'cardlines.com',
+  'sportscardinvestor.com',
+  'beckett.com',
+  'blowoutbuzz.com',
 ];
 
-// Map Claude's "brand" field to our brand_id. Anything else → unmapped → skip.
-// Pokemon → pokemon, Magic → magic, all Bandai games → bandai. The brand rows
-// pokemon + bandai are seeded; magic is added by a forward migration alongside
-// this change.
+// Map Claude's "brand" field to our brand_id. Anything else → unmapped → skip
+// (the unknown-brand skip in validateAndNormalize keeps us from FK-failing).
+//
+// TCG:    Pokemon → pokemon, Magic → magic, all Bandai games → bandai.
+// Sports: Topps → topps, Panini → panini, Bowman → bowman,
+//         Upper Deck → upper_deck, Donruss → donruss, Leaf → leaf,
+//         Fanatics → fanatics.
+//
+// Every brand_id below is already seeded in public.brands:
+//   pokemon / bandai / topps           — 20260506042944_seed_brands_and_owner_invite.sql
+//   panini / bowman / upper_deck /
+//   leaf / fanatics / donruss          — 20260506191322_scraper_infrastructure.sql
+//   magic                              — 20260512100000_seed_magic_brand.sql
+// No new brand-seed migration is needed.
 const BRAND_MAP: Record<string, string> = {
+  // --- TCG ---
   pokemon: 'pokemon',
   'pokemon tcg': 'pokemon',
   'pokémon': 'pokemon',
@@ -104,12 +143,25 @@ const BRAND_MAP: Record<string, string> = {
   'union arena': 'bandai',
   gundam: 'bandai',
   'gundam card game': 'bandai',
+  // --- Sports ---
+  topps: 'topps',
+  panini: 'panini',
+  bowman: 'bowman',
+  'upper deck': 'upper_deck',
+  upper_deck: 'upper_deck',
+  upperdeck: 'upper_deck',
+  donruss: 'donruss',
+  leaf: 'leaf',
+  'leaf trading cards': 'leaf',
+  fanatics: 'fanatics',
 };
 
-// The specific TCG game a release belongs to. Stored in the `sets.sport`
-// column (free-text) so downstream consumers that read `sport` keep working;
-// for TCG this column carries the game rather than a sport.
+// The category a release belongs to. Stored in the `sets.sport` column
+// (free-text) so downstream consumers that read `sport` keep working. For TCG
+// this carries the game (pokemon / magic / …); for sports it carries the sport
+// (basketball / baseball / football / …). Both verticals share this column.
 const ALLOWED_GAMES = new Set([
+  // TCG games
   'pokemon',
   'magic',
   'one piece',
@@ -117,12 +169,25 @@ const ALLOWED_GAMES = new Set([
   'digimon',
   'union arena',
   'gundam',
+  // Sports
+  'basketball',
+  'baseball',
+  'football',
+  'hockey',
+  'soccer',
+  'racing',
+  'wrestling',
+  'multi-sport',
   'other',
 ]);
 
-// Normalize the agent's free-text game label to one of ALLOWED_GAMES.
+// Normalize the agent's free-text game/sport label to one of ALLOWED_GAMES.
+// TCG game labels resolve first (priority); sports labels resolve next. If the
+// label is unrecognized but the release's brand is a sports brand, the caller
+// falls back to 'multi-sport' rather than rejecting the row.
 function normalizeGame(raw: string): string | null {
   const g = raw.toLowerCase().trim();
+  // --- TCG games ---
   if (g.includes('pok')) return 'pokemon';
   if (g.includes('magic') || g === 'mtg') return 'magic';
   if (g.includes('one piece')) return 'one piece';
@@ -132,9 +197,35 @@ function normalizeGame(raw: string): string | null {
   if (g.includes('digimon')) return 'digimon';
   if (g.includes('union arena')) return 'union arena';
   if (g.includes('gundam')) return 'gundam';
+  // --- Sports ---
+  if (g.includes('basketball') || g.includes('nba')) return 'basketball';
+  if (g.includes('baseball') || g.includes('mlb')) return 'baseball';
+  if (g.includes('football') || g.includes('nfl')) return 'football';
+  if (g.includes('hockey') || g.includes('nhl')) return 'hockey';
+  if (g.includes('soccer') || g.includes('futbol') || g.includes('football club')) {
+    return 'soccer';
+  }
+  if (g.includes('racing') || g.includes('f1') || g.includes('formula')) return 'racing';
+  if (g.includes('wrestling') || g.includes('wwe') || g.includes('ufc') || g.includes('mma')) {
+    return 'wrestling';
+  }
+  if (g.includes('multi') || g.includes('mixed')) return 'multi-sport';
   if (ALLOWED_GAMES.has(g)) return g;
   return null;
 }
+
+// brand_ids that belong to the sports vertical. Used as a fallback so a sports
+// release with an unrecognized `game` label still lands as 'multi-sport'
+// instead of being dropped on a "bad game" rejection.
+const SPORTS_BRAND_IDS = new Set([
+  'topps',
+  'panini',
+  'bowman',
+  'upper_deck',
+  'donruss',
+  'leaf',
+  'fanatics',
+]);
 
 // Match Claude's enums; box_type 'unknown' becomes null.
 const ALLOWED_BOX_TYPES = new Set([
@@ -191,10 +282,17 @@ async function validateAndNormalize(
       reasons.push(`unknown brand: ${raw.brand}`);
       continue;
     }
-    const game = normalizeGame(String(raw.game ?? ''));
+    // Resolve the category. For sports brands, an unrecognized label falls
+    // back to 'multi-sport' so we don't drop an otherwise-valid sports release
+    // just because the agent labeled the sport oddly.
+    let game = normalizeGame(String(raw.game ?? ''));
     if (!game) {
-      reasons.push(`bad game: ${raw.game}`);
-      continue;
+      if (SPORTS_BRAND_IDS.has(brand_id)) {
+        game = 'multi-sport';
+      } else {
+        reasons.push(`bad game: ${raw.game}`);
+        continue;
+      }
     }
     const release_date = isYmd(raw.release_date) ? raw.release_date : null;
     if (!release_date) {
@@ -313,23 +411,27 @@ function buildPrompts(opts: RunOptions = {}): { system: string; user: string } {
     ? `Target ${opts.target_count}+ entries. Comprehensive coverage of every game's set/expansion lineup is more valuable than caution — include every distinct release you can confirm. Quality matters but lean toward inclusion when confidence is at least "low".`
     : `Aim for 20–60 entries. Quality over quantity.`;
 
-  const system = `You are a trading card game (TCG) release researcher.
+  const system = `You are a collectible card release researcher covering BOTH trading card games (TCG) AND sports cards.
 
-Your job: find upcoming TCG set / expansion releases for these games: ${focusBrands}.
+Your job: find upcoming card releases for these brands: ${focusBrands}.
 
-These are collectible card games — find their named expansions, sets, booster series, starter/structure decks, elite trainer boxes, collection boxes, and other sealed product releases.
+Two verticals:
+- TCG (Pokemon, Magic: The Gathering, and the Bandai games — One Piece, Dragon Ball Super / Fusion World, Digimon, Union Arena, Gundam): collectible card games — find their named expansions, sets, booster series, starter/structure decks, elite trainer boxes, collection boxes, and other sealed product releases.
+- Sports cards (Topps, Panini, Bowman, Upper Deck, Donruss, Leaf, Fanatics): find named card products / sets across basketball, baseball, football, hockey, soccer, racing, wrestling, etc. — hobby boxes, blasters, hangers, and other sealed product releases.
+
+PRIORITY — TCG first. TCG is the priority and the bigger focus: give it thorough, slightly-deeper coverage and include every distinct TCG release you can confirm. ALSO include the major sports card releases in the window — do not skip sports — but it's acceptable for sports coverage to be a notch less exhaustive than TCG (focus on the flagship / well-known sports products rather than every regional parallel).
 
 Use the web_search tool to consult, in order of preference:
 ${PREFERRED_SOURCES.map((s) => `  - ${s}`).join('\n')}
-The publisher's own site (pokemon.com, magic.wizards.com, bandai-tcg-plus.com and the official One Piece / Dragon Ball Super / Digimon / Union Arena / Gundam card game sites) is a primary source. Reputable TCG news sites (pokebeach.com) and well-maintained wikis (mtg.wiki, mtg.fandom.com) count as secondary sources. Avoid forums, Reddit, eBay, and marketplace listings.
+For TCG, the publisher's own site (pokemon.com, magic.wizards.com, bandai-tcg-plus.com and the official One Piece / Dragon Ball Super / Digimon / Union Arena / Gundam card game sites) is a primary source; reputable TCG news (pokebeach.com) and well-maintained wikis (mtg.wiki, mtg.fandom.com) are secondary. For sports, the manufacturer site and reputable sports-card release calendars / news (cardboardconnection.com, cardlines.com, sportscardinvestor.com, beckett.com, blowoutbuzz.com) are the primary sources. Avoid forums, Reddit, eBay, and marketplace listings.
 
 Output discipline:
 - Return ONE JSON object only. No prose. No markdown fences. No commentary.
 - Top-level shape: { "releases": [ … ] }.
 - Each release object MUST have these keys exactly:
-    name (string — the set/expansion name, e.g. "Scarlet & Violet—Prismatic Evolutions"),
-    brand (one of: Pokemon TCG, Magic: The Gathering, One Piece Card Game, Dragon Ball Super Card Game, Digimon Card Game, Union Arena, Gundam Card Game, other),
-    game (one of: pokemon, magic, one piece, dragon ball super, digimon, union arena, gundam, other),
+    name (string — the set/product name, e.g. "Scarlet & Violet—Prismatic Evolutions" or "2026 Topps Series 1 Baseball"),
+    brand (one of: Pokemon TCG, Magic: The Gathering, One Piece Card Game, Dragon Ball Super Card Game, Digimon Card Game, Union Arena, Gundam Card Game, Topps, Panini, Bowman, Upper Deck, Donruss, Leaf, Fanatics, other),
+    game (for TCG one of: pokemon, magic, one piece, dragon ball super, digimon, union arena, gundam; for sports the sport, one of: basketball, baseball, football, hockey, soccer, racing, wrestling, multi-sport; or other),
     box_type (one of: booster_box, elite_trainer_box, booster_bundle, starter_deck, structure_deck, collection_box, blister, other, unknown),
     release_date ("YYYY-MM-DD" or null),
     pre_order_opens_at ("YYYY-MM-DD" or null),
@@ -340,12 +442,12 @@ Output discipline:
 - confidence rules:
     high — 2+ independent sources from the preferred list agree on the date
     medium — single source, or sources disagree by < 7 days
-    low — inferred from publisher release patterns (e.g. "Pokemon historically drops a new main set roughly quarterly")
+    low — inferred from publisher release patterns (e.g. "Pokemon historically drops a new main set roughly quarterly", "Topps Series 1 Baseball lands early each year")
 - ${releaseFilterClause}
 - If you can't confirm a release_date with at least low confidence, omit the entry entirely.
 - ${targetClause}`;
 
-  const user = `Today is ${today}. Find upcoming TCG set / expansion releases for ${focusBrands} with release_date between ${dateStart} and ${dateEnd}.
+  const user = `Today is ${today}. Find upcoming card releases — across BOTH trading card games AND sports cards — for ${focusBrands} with release_date between ${dateStart} and ${dateEnd}. Prioritize TCG (deeper coverage), but include the major sports card releases too.
 
 Return only the JSON object. Do not narrate the search process.`;
 
@@ -429,6 +531,13 @@ Deno.serve(
     }
 
     const { system, user } = buildPrompts(opts);
+
+    // Backfill mode = an explicit past date_start. In that mode the agent is
+    // asked for already-released rows, so we must NOT run the past-entry prune
+    // (it would delete exactly what was just backfilled). Mirror the same
+    // condition buildPrompts uses for its release filter.
+    const todayForMode = new Date().toISOString().slice(0, 10);
+    const allowReleasedMode = (opts.date_start ?? todayForMode) < todayForMode;
 
     let response;
     try {
@@ -538,7 +647,9 @@ Deno.serve(
       const { error: insErr } = await admin.from('sets').insert({
         brand_id: rel.brand_id,
         name: rel.name,
-        // `sport` column carries the TCG game for ai_research rows.
+        // `sport` column carries the category for ai_research rows: the TCG
+        // game (pokemon / magic / …) for TCG, or the sport (basketball / …)
+        // for sports cards.
         sport: rel.game,
         box_type: rel.box_type === 'unknown' ? null : rel.box_type,
         release_date: rel.release_date,
@@ -573,6 +684,43 @@ Deno.serve(
       .order('requested_at', { ascending: false })
       .limit(1);
 
+    // ------------------------------------------------------------------
+    // Self-prune: clear stale past ai_research calendar entries.
+    //
+    // Scope is deliberately tight: source='ai_research' AND release_date <
+    // today (UTC). This removes the ~194 stale v1 sports rows on the next
+    // forward run and keeps the calendar to actionable upcoming releases.
+    // It never touches catalog sets (source tcgcsv / pokemon_tcg_api / the
+    // manufacturer scrapers) — those have a different `source` value.
+    //
+    // Skipped in backfill mode (date_start in the past) because that mode
+    // intentionally inserts already-released rows; pruning there would delete
+    // exactly what was just backfilled. The cron path runs forward, so this
+    // prunes on every scheduled run.
+    //
+    // FK cascade safety: deleting a `sets` row cascades to cards,
+    // release_alerts_sent, and drop_alerts_sent (set_conflicts was dropped in
+    // the v2 strip). ai_research rows are release-calendar entries with no
+    // card catalog attached (cards come from catalog sources), so the cards
+    // cascade is a no-op. The alert-dedup rows that might cascade only track
+    // alerts already sent for a now-past release, so nothing future depends on
+    // them. The delete is safe.
+    let prunedPast = 0;
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    if (!allowReleasedMode) {
+      const { data: pruned, error: pruneErr } = await admin
+        .from('sets')
+        .delete()
+        .eq('source', SOURCE)
+        .lt('release_date', todayUtc)
+        .select('id');
+      if (pruneErr) {
+        console.warn(`prune past ai_research sets failed: ${pruneErr.message}`);
+      } else {
+        prunedPast = (pruned ?? []).length;
+      }
+    }
+
     return jsonResponse({
       ok: true,
       date_window: { start: opts.date_start ?? '(today)', end: opts.date_end ?? '(today+90)' },
@@ -581,6 +729,7 @@ Deno.serve(
       refreshed,
       skipped_existing: skippedExisting,
       rejected,
+      pruned_past: prunedPast,
       cost_usd: cost,
       model: MODEL,
       usage: response.usage,
