@@ -4,6 +4,9 @@
 .env.*.local
 .env.local.bak
 *.env.local.bak
+
+# Netlify CLI local state (created by deploys)
+.netlify
 .env.development
 .env.production
 .env.save
