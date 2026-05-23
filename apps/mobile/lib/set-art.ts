@@ -162,3 +162,38 @@ export function parseSetCode(name: string): string | null {
   if (hash) return hash[1].toUpperCase();
   return null;
 }
+
+// Short, always-non-empty badge text for the art cell. Prefers a real parsed
+// set code; otherwise derives a compact uppercase token from the name so the
+// badge never renders empty:
+//   - a code-like word (letters+digits, e.g. "OP08", "SV10") if one exists
+//   - else the initials of the first words (e.g. "Surging Sparks" -> "SS")
+//   - else a trimmed alphanumeric slice of the name
+// Returns '' only when the name has no usable characters at all (caller hides).
+export function shortSetCode(name: string): string {
+  const real = parseSetCode(name);
+  if (real) return real;
+  if (!name) return '';
+
+  const words = name.trim().split(/\s+/).filter(Boolean);
+
+  // Prefer a token that already looks like a code: has both letters and digits.
+  for (const w of words) {
+    const cleaned = w.replace(/[^A-Za-z0-9]/g, '');
+    if (/[A-Za-z]/.test(cleaned) && /[0-9]/.test(cleaned)) {
+      return cleaned.toUpperCase().slice(0, 6);
+    }
+  }
+
+  // Multi-word name with no code-like token: use up to 3 initials.
+  const initials = words
+    .map((w) => w.replace(/[^A-Za-z0-9]/g, '').charAt(0))
+    .filter(Boolean)
+    .slice(0, 3)
+    .join('');
+  if (initials.length >= 2) return initials.toUpperCase();
+
+  // Single short word (or one initial): take a few leading alphanumerics.
+  const alnum = name.replace(/[^A-Za-z0-9]/g, '');
+  return alnum.toUpperCase().slice(0, 4);
+}
