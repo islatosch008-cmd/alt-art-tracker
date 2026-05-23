@@ -17,9 +17,16 @@ import { useBrands } from '@/lib/use-brands';
 import {
   daysUntil,
   groupReleases,
+  type ReleaseSection,
   type ReleaseSet,
   useReleases,
 } from '@/lib/use-releases';
+
+// Section feed for the screen. `kind` lets the renderer tell apart the
+// upcoming section, the tappable "Past drops" toggle, and a past month group.
+type DisplaySection = ReleaseSection & {
+  kind: 'upcoming' | 'pastToggle' | 'pastMonth';
+};
 
 // Compact "Mon D, YYYY" used inside the calendar chooser labels.
 function shortDate(dateStr: string): string {
@@ -41,6 +48,9 @@ export default function ReleasesScreen() {
     () => (brandId ? (data ?? []).filter((s) => s.brand_id === brandId) : (data ?? [])),
     [data, brandId],
   );
+
+  // Past drops are hidden behind a collapsible header, collapsed by default.
+  const [pastExpanded, setPastExpanded] = useState(false);
 
   const headerEl = (
     <>
@@ -75,22 +85,60 @@ export default function ReleasesScreen() {
     );
   }
 
-  const sections = groupReleases(filtered);
+  const grouped = groupReleases(filtered);
+  // groupReleases always returns the "Upcoming" section first, then one
+  // month-titled section per past month.
+  const upcomingSection = grouped[0];
+  const pastSections = grouped.slice(1);
+  const pastCount = pastSections.reduce((n, s) => n + s.data.length, 0);
+
+  // Build the SectionList feed:
+  //  - always the upcoming section
+  //  - a zero-row "Past drops" toggle section (only when there ARE past drops)
+  //  - the real month sections, only while expanded
+  const sections: DisplaySection[] = [{ ...upcomingSection, kind: 'upcoming' }];
+  if (pastCount > 0) {
+    sections.push({ title: 'Past drops', data: [], kind: 'pastToggle' });
+    if (pastExpanded) {
+      for (const s of pastSections) {
+        sections.push({ ...s, kind: 'pastMonth' });
+      }
+    }
+  }
 
   return (
     <PageShell>
-      <SectionList
+      <SectionList<ReleaseSet, DisplaySection>
         contentContainerStyle={styles.content}
         sections={sections}
         keyExtractor={(s) => s.id}
         renderItem={({ item }) => <ReleaseRow set={item} />}
-        renderSectionHeader={({ section }) => (
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-          </View>
-        )}
+        renderSectionHeader={({ section }) => {
+          if (section.kind === 'pastToggle') {
+            return (
+              <Pressable
+                style={[styles.sectionHeader, styles.pastToggle]}
+                onPress={() => setPastExpanded((open) => !open)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: pastExpanded }}
+                accessibilityLabel={`${pastExpanded ? 'Collapse' : 'Expand'} past drops, ${pastCount} ${
+                  pastCount === 1 ? 'release' : 'releases'
+                }`}
+              >
+                <Text style={[styles.sectionTitle, styles.pastToggleTitle]}>
+                  {pastExpanded ? '▾' : '▸'} Past drops ({pastCount})
+                </Text>
+              </Pressable>
+            );
+          }
+          return (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+            </View>
+          );
+        }}
         renderSectionFooter={({ section }) =>
-          section.title === 'Upcoming' && section.data.length === 0 ? (
+          section.kind === 'upcoming' && section.data.length === 0 ? (
             <View style={styles.upcomingEmpty}>
               <Text style={styles.upcomingEmptyTitle}>
                 No upcoming releases tracked yet
@@ -260,6 +308,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+
+  // Tappable "Past drops" header — same type language, a touch more prominent
+  // and visibly interactive (separator above, darker label).
+  pastToggle: {
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f2f2f2',
+  },
+  pastToggleTitle: {
+    color: '#555',
   },
 
   row: {
