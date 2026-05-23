@@ -45,6 +45,7 @@ import {
   getCardsBatch,
   JUSTTCG_BATCH_SIZE,
   JUSTTCG_KEY_PRESENT,
+  type JustTcgVariant,
   JustTcgKeyMissingError,
   JustTcgRateLimitedError,
 } from '../_shared/justtcg.ts';
@@ -78,6 +79,43 @@ function tcgplayerIdOf(card: CardRow): string | null {
   if (typeof v === 'number' && Number.isFinite(v)) return String(v);
   if (typeof v === 'string' && v.trim() !== '') return v.trim();
   return null;
+}
+
+// Choose the price we surface as cards.current_price for a card.
+//
+// JustTCG returns one variant per (printing, condition) combination. The
+// most representative "what's this card worth right now" figure for the
+// Trending tab is the baseline collector grade: condition ~"Near Mint",
+// printing ~"Normal"/non-foil. We prefer, in order:
+//   1. Near Mint + Normal/non-foil  — the canonical baseline.
+//   2. Any Near Mint variant         — grade matters more than printing.
+//   3. Any Normal/non-foil variant   — printing matters more than grade.
+//   4. The first priced variant      — last-resort fallback so a matched
+//                                       card never shows "syncing" forever.
+// Returns null only when no variant carries a finite numeric price.
+function representativePrice(variants: JustTcgVariant[]): number | null {
+  const priced = variants.filter(
+    (v) => typeof v.price === 'number' && Number.isFinite(v.price),
+  );
+  if (priced.length === 0) return null;
+
+  const isNearMint = (v: JustTcgVariant) =>
+    (v.condition ?? '').toLowerCase().includes('near mint');
+  // "Normal" is JustTCG's non-foil printing label; treat anything that
+  // isn't explicitly a foil/holo finish as the baseline non-foil printing.
+  const isNonFoil = (v: JustTcgVariant) => {
+    const p = (v.printing ?? '').toLowerCase();
+    if (p.includes('normal')) return true;
+    return !(p.includes('foil') || p.includes('holo'));
+  };
+
+  const pick =
+    priced.find((v) => isNearMint(v) && isNonFoil(v)) ??
+    priced.find(isNearMint) ??
+    priced.find(isNonFoil) ??
+    priced[0];
+
+  return Math.round(pick.price * 100) / 100;
 }
 
 Deno.serve(
@@ -235,6 +273,10 @@ Deno.serve(
     // Cards we successfully matched -> their resolved JustTCG card id, so
     // we can persist justtcg_card_id and bump last_justtcg_fetch_at.
     const resolvedJusttcgId = new Map<string, string>();
+    // Cards we matched -> the representative current price to write to
+    // cards.current_price (see representativePrice). Absent for cards whose
+    // variants had no finite price.
+    const representativePriceByCard = new Map<string, number>();
     const fetchedCardIds = new Set<string>();
 
     let requestsMade = 0;
@@ -271,6 +313,11 @@ Deno.serve(
           if (!ac) continue; // JustTCG had no match for this query
           fetchedCardIds.add(r.card.id);
           resolvedJusttcgId.set(r.card.id, ac.id);
+          // Capture the representative current price for cards.current_price.
+          const repPrice = representativePrice(ac.variants ?? []);
+          if (repPrice != null) {
+            representativePriceByCard.set(r.card.id, repPrice);
+          }
           for (const v of ac.variants ?? []) {
             if (typeof v.price !== 'number' || !Number.isFinite(v.price)) {
               continue;
@@ -326,6 +373,11 @@ Deno.serve(
     );
     for (const id of unresolvableIds) attemptedCardIds.add(id);
 
+    // Same fan-out batching strategy the rotation cursor already used: one
+    // partial-column UPDATE per attempted card, awaited together. This run
+    // touches at most CARDS_PER_RUN (200) cards, so the fan-out stays small.
+    // We fold the current_price write into THIS existing patch rather than
+    // issuing a second pass, so a matched card's price + cursor land atomically.
     const updates = await Promise.all(
       [...attemptedCardIds].map((id) => {
         const patch: Record<string, unknown> = {
@@ -333,6 +385,14 @@ Deno.serve(
         };
         const resolved = resolvedJusttcgId.get(id);
         if (resolved) patch.justtcg_card_id = resolved;
+        // Surface the representative JustTCG price as the card's current
+        // price (and stamp last_price_check_at) for cards we actually priced.
+        // Cards we couldn't price leave current_price untouched.
+        const repPrice = representativePriceByCard.get(id);
+        if (repPrice != null) {
+          patch.current_price = repPrice;
+          patch.last_price_check_at = nowIso;
+        }
         return admin.from('cards').update(patch).eq('id', id);
       }),
     );
@@ -372,6 +432,7 @@ Deno.serve(
       cards_resolvable: resolvable.length,
       cards_unresolvable: unresolvableIds.length,
       cards_matched: fetchedCardIds.size,
+      cards_priced: representativePriceByCard.size,
       requests_made: requestsMade,
       requests_used_today: requestsUsedToday + requestsMade,
       daily_ceiling: DAILY_REQUEST_CEILING,

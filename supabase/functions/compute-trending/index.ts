@@ -122,9 +122,12 @@ type SnapshotRow = {
 
 // Average per-variant percent price change over the window. A variant
 // contributes only if it has >= 2 snapshots; a card with no qualifying
-// variant returns a neutral 0 (handled by the caller as momentum_signal
-// 0.5). Never throws.
-function cardMomentumPct(rows: SnapshotRow[]): number {
+// variant returns NULL ("no usable history"), which the caller treats as a
+// neutral momentum_signal of 0.5 for scoring AND persists as a NULL
+// trending_momentum_pct so the UI can tell "flat" (0.0) apart from "no data"
+// (null). A card WITH usable history but a genuinely flat price returns 0.
+// Never throws.
+function cardMomentumPct(rows: SnapshotRow[]): number | null {
   const byVariant = new Map<string, SnapshotRow[]>();
   for (const r of rows) {
     const arr = byVariant.get(r.variant_id) ?? [];
@@ -143,7 +146,7 @@ function cardMomentumPct(rows: SnapshotRow[]): number {
     if (!Number.isFinite(oldest) || oldest === 0) continue;
     pcts.push((newest - oldest) / oldest);
   }
-  if (pcts.length === 0) return 0; // neutral — no usable history
+  if (pcts.length === 0) return null; // no usable history (distinct from flat 0)
   return pcts.reduce((s, p) => s + p, 0) / pcts.length;
 }
 
@@ -253,17 +256,26 @@ Deno.serve(
     }
 
     // --- SCORE EACH CARD (in-memory, no I/O) -----------------------------
-    type Update = { id: string; trending_score: number };
+    type Update = {
+      id: string;
+      trending_score: number;
+      // Reason stats for the Trending tab. Both NULL = "no data" so the UI
+      // can distinguish a flat/quiet card from one we couldn't measure.
+      trending_momentum_pct: number | null;
+      trending_listings: number | null;
+    };
     const updates: Update[] = [];
     for (const id of cardIds) {
       const snaps = snapsByCard.get(id) ?? [];
-      // (a) price momentum — neutral 0 when too few snapshots.
+      // (a) price momentum — NULL when too few snapshots; treated as the
+      // neutral 0 for the score signal but persisted as NULL for the UI.
       const momentumPct = cardMomentumPct(snaps);
-      const momentumSignal = clamp(momentumPct, -0.5, 0.5) + 0.5; // 0..1
+      const momentumSignal = clamp(momentumPct ?? 0, -0.5, 0.5) + 0.5; // 0..1
 
       // (b) eBay active-listing volume — log-scaled real listing count.
       // Neutral 0 when no usable total_active in the window.
-      const totalActive = totalActiveByCard.get(id) ?? 0;
+      const totalActiveRaw = totalActiveByCard.get(id); // undefined when none
+      const totalActive = totalActiveRaw ?? 0;
       const volumeSignal = Math.min(
         Math.log10(totalActive + 1) / 3.3,
         1,
@@ -275,7 +287,20 @@ Deno.serve(
 
       const raw = W_MOMENTUM * momentumSignal + W_VOLUME * volumeSignal;
       const score = Math.round(raw * 100 * 100) / 100; // 0..100, 2dp
-      updates.push({ id, trending_score: score });
+
+      // Reason stats: momentum as a PERCENT, 1dp (8.0 = +8.0%); NULL when no
+      // usable history. Listings = the real eBay active count, or NULL when
+      // we had none in the window (NOT 0 — absence is "unknown").
+      const momentumPctOut =
+        momentumPct == null ? null : Math.round(momentumPct * 100 * 10) / 10;
+      const listingsOut = totalActiveRaw ?? null;
+
+      updates.push({
+        id,
+        trending_score: score,
+        trending_momentum_pct: momentumPctOut,
+        trending_listings: listingsOut,
+      });
     }
 
     // --- BATCHED WRITES --------------------------------------------------
@@ -288,6 +313,8 @@ Deno.serve(
           .from('cards')
           .update({
             trending_score: u.trending_score,
+            trending_momentum_pct: u.trending_momentum_pct,
+            trending_listings: u.trending_listings,
             updated_at: new Date().toISOString(),
           })
           .eq('id', u.id),

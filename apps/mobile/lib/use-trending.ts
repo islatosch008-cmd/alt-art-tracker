@@ -12,6 +12,11 @@ export type TrendingCard = {
   // + eBay active-listing volume), written by the compute-trending Edge
   // Function. Replaces the v1 popularity_score.
   trending_score: number | null;
+  // Reason stats behind the score, written by compute-trending. Momentum is
+  // a percent (8.0 = +8.0%), NULL = no usable price history (distinct from a
+  // flat 0.0). Listings is the eBay active-listing count, NULL = unknown.
+  trending_momentum_pct: number | null;
+  trending_listings: number | null;
   current_price: number | null;
   ebay_avg_price: number | null;
   tcgplayer_market_price: number | null;
@@ -28,7 +33,7 @@ export function useTrendingCards(brandId: string | null) {
       let q = supabase
         .from('cards')
         .select(
-          'id, name, image_url, rarity, card_number, trending_score, current_price, ebay_avg_price, tcgplayer_market_price, brand_id, sets(name)',
+          'id, name, image_url, rarity, card_number, trending_score, trending_momentum_pct, trending_listings, current_price, ebay_avg_price, tcgplayer_market_price, brand_id, sets(name)',
         )
         .order('trending_score', { ascending: false, nullsFirst: false })
         .limit(PAGE);

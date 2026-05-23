@@ -189,6 +189,8 @@ export type Database = {
           rarity: string | null
           set_id: string | null
           tcgplayer_market_price: number | null
+          trending_listings: number | null
+          trending_momentum_pct: number | null
           trending_score: number | null
           updated_at: string | null
         }
@@ -215,6 +217,8 @@ export type Database = {
           rarity?: string | null
           set_id?: string | null
           tcgplayer_market_price?: number | null
+          trending_listings?: number | null
+          trending_momentum_pct?: number | null
           trending_score?: number | null
           updated_at?: string | null
         }
@@ -241,6 +245,8 @@ export type Database = {
           rarity?: string | null
           set_id?: string | null
           tcgplayer_market_price?: number | null
+          trending_listings?: number | null
+          trending_momentum_pct?: number | null
           trending_score?: number | null
           updated_at?: string | null
         }

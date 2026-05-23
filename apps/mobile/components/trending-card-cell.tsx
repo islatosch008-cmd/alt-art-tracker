@@ -16,6 +16,15 @@ export function TrendingCardCell({ card }: { card: TrendingCard }) {
   const scoreText = score > 0 ? Math.min(100, Math.round(score)).toString() : '—';
   const setName = card.sets?.name ?? '';
 
+  // Why-it-trends reason line. Momentum (▲/▼ X% · 7d) only when measured
+  // (null = no data, not flat); listings ("· N listings") only when known.
+  // Both null => render nothing (no placeholder).
+  const momentum = card.trending_momentum_pct;
+  const listings = card.trending_listings;
+  const hasReason = momentum != null || listings != null;
+  const momentumUp = momentum != null && momentum > 0;
+  const momentumDown = momentum != null && momentum < 0;
+
   return (
     <Link href={`/cards/${card.id}`} asChild>
       <Pressable style={({ pressed }) => [styles.cell, pressed && styles.cellPressed]}>
@@ -46,6 +55,27 @@ export function TrendingCardCell({ card }: { card: TrendingCard }) {
             <Text style={styles.priceMissing}>price syncing</Text>
           )}
         </View>
+
+        {hasReason ? (
+          <Text style={styles.reason} numberOfLines={1}>
+            {momentum != null ? (
+              <Text
+                style={
+                  momentumUp
+                    ? styles.reasonUp
+                    : momentumDown
+                      ? styles.reasonDown
+                      : styles.reasonFlat
+                }
+              >
+                {momentumUp ? '▲ ' : momentumDown ? '▼ ' : ''}
+                {Math.abs(momentum).toFixed(1)}% · 7d
+              </Text>
+            ) : null}
+            {momentum != null && listings != null ? ' · ' : ''}
+            {listings != null ? `${listings} listings` : ''}
+          </Text>
+        ) : null}
 
         <View style={styles.bottomRow}>
           {card.rarity ? (
@@ -125,6 +155,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#aaa',
     fontStyle: 'italic',
+  },
+  reason: {
+    fontSize: 11,
+    color: '#888',
+    marginTop: 4,
+    paddingHorizontal: 4,
+    fontVariant: ['tabular-nums'],
+  },
+  reasonUp: {
+    color: '#16a34a',
+    fontWeight: '700',
+  },
+  reasonDown: {
+    color: '#dc2626',
+    fontWeight: '700',
+  },
+  reasonFlat: {
+    color: '#888',
+    fontWeight: '700',
   },
   bottomRow: {
     flexDirection: 'row',
