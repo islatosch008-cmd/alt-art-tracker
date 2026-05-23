@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 
-import { BrandChips } from '@/components/brand-chips';
+import { BrandFilter } from '@/components/brand-filter';
 import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
 import { addToCalendar } from '@/lib/calendar';
@@ -60,7 +60,7 @@ export default function ReleasesScreen() {
           brandId ? ' in this brand' : ' in the catalog'
         }`}
       />
-      <BrandChips brands={brands} selected={brandId} onSelect={setBrandId} />
+      <BrandFilter brands={brands} selected={brandId} onSelect={setBrandId} />
     </>
   );
 

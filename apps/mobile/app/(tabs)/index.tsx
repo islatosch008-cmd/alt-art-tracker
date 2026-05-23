@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 
-import { BrandChips } from '@/components/brand-chips';
+import { BrandFilter } from '@/components/brand-filter';
 import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
 import { TrendingCardCell } from '@/components/trending-card-cell';
@@ -25,7 +25,7 @@ export default function TrendingScreen() {
   return (
     <PageShell>
       <ScreenHeader title="Trending Now" subtitle="Cards moving today" />
-      <BrandChips brands={brands.data} selected={brand} onSelect={setBrand} />
+      <BrandFilter brands={brands.data} selected={brand} onSelect={setBrand} />
 
       {trending.isLoading ? (
         <View style={styles.center}>
