@@ -1,16 +1,30 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { QueryProvider } from '@/lib/query-client';
+import { theme } from '@/lib/theme';
 
 export const unstable_settings = {
   anchor: '(tabs)',
+};
+
+// App-wide dark navigation theme. Drives the native Stack header (card detail)
+// and the default scene background so there's no white flash between screens.
+const navDarkTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: theme.bg,
+    card: theme.surface,
+    border: theme.border,
+    text: theme.text,
+    primary: theme.accentDefault,
+  },
 };
 
 const AUTH_ROUTES = new Set(['login', 'signup']);
@@ -34,8 +48,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: theme.bg,
+        }}>
+        <ActivityIndicator color={theme.accentDefault} />
       </View>
     );
   }
@@ -43,20 +63,21 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <QueryProvider>
       <AuthProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ThemeProvider value={navDarkTheme}>
           <AuthGate>
-            <Stack>
+            <Stack
+              screenOptions={{
+                contentStyle: { backgroundColor: theme.bg },
+              }}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="login" options={{ headerShown: false }} />
               <Stack.Screen name="signup" options={{ headerShown: false }} />
             </Stack>
           </AuthGate>
-          <StatusBar style="auto" />
+          <StatusBar style="light" />
         </ThemeProvider>
       </AuthProvider>
     </QueryProvider>

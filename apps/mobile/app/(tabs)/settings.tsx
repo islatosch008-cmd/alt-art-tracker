@@ -14,6 +14,7 @@ import {
 import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
 import { useAuth } from '@/lib/auth';
+import { theme } from '@/lib/theme';
 import { confirmPhoneVerify, startPhoneVerify } from '@/lib/phone';
 import { formatPhoneDisplay, normalizeUSPhone } from '@/lib/phone-format';
 import { useIsAdmin } from '@/lib/use-is-admin';
@@ -253,7 +254,14 @@ function ToggleRow({
         <Text style={styles.toggleLabel}>{label}</Text>
         <Text style={styles.hint}>{hint}</Text>
       </View>
-      <Switch value={value} onValueChange={onChange} disabled={disabled} />
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        disabled={disabled}
+        trackColor={{ false: theme.borderStrong, true: theme.accentDefault }}
+        thumbColor="#fff"
+        ios_backgroundColor={theme.borderStrong}
+      />
     </View>
   );
 }
@@ -262,36 +270,37 @@ const styles = StyleSheet.create({
   body: { padding: 24, paddingTop: 0, gap: 16, paddingBottom: 40 },
   card: {
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: theme.border,
     borderRadius: 12,
     padding: 16,
-    backgroundColor: '#fafafa',
+    backgroundColor: theme.surface,
   },
-  cardLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
-  cardValue: { fontSize: 16, fontWeight: '600' },
+  cardLabel: { fontSize: 12, color: theme.textMuted, marginBottom: 4 },
+  cardValue: { fontSize: 16, fontWeight: '600', color: theme.text },
   roleBadge: {
     alignSelf: 'flex-start',
     marginTop: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
-    backgroundColor: '#dbeafe',
+    backgroundColor: 'rgba(91, 127, 255, 0.18)',
   },
   roleBadgeText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#1e40af',
+    color: theme.accentDefault,
     letterSpacing: 0.5,
   },
-  hint: { fontSize: 12, color: '#888', marginTop: 4 },
+  hint: { fontSize: 12, color: theme.textMuted, marginTop: 4 },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.borderStrong,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: theme.text,
+    backgroundColor: theme.surfaceAlt,
   },
   codeInput: {
     fontSize: 22,
@@ -300,7 +309,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   primaryButton: {
-    backgroundColor: '#111',
+    backgroundColor: theme.accentDefault,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -312,31 +321,31 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.borderStrong,
   },
-  secondaryButtonText: { color: '#333', fontSize: 15, fontWeight: '600' },
+  secondaryButtonText: { color: theme.text, fontSize: 15, fontWeight: '600' },
   disabled: { opacity: 0.5 },
   msg: { fontSize: 13, marginTop: 12 },
-  error: { color: '#c00' },
-  info: { color: '#0a0' },
+  error: { color: theme.danger },
+  info: { color: theme.success },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: theme.border,
     gap: 12,
   },
   toggleRowLast: { borderBottomWidth: 0, paddingBottom: 0 },
   toggleText: { flex: 1 },
-  toggleLabel: { fontSize: 15, fontWeight: '600', color: '#111' },
+  toggleLabel: { fontSize: 15, fontWeight: '600', color: theme.text },
   signOut: {
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#c00',
+    borderColor: theme.danger,
   },
-  signOutText: { color: '#c00', fontSize: 15, fontWeight: '600' },
+  signOutText: { color: theme.danger, fontSize: 15, fontWeight: '600' },
 });

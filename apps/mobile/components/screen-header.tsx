@@ -1,5 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { theme } from '@/lib/theme';
+
 type Props = {
   title: string;
   subtitle?: string;
@@ -29,6 +31,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   titleBlock: { flex: 1 },
-  title: { fontSize: 28, fontWeight: '700', color: '#111' },
-  subtitle: { fontSize: 14, color: '#666', marginTop: 2 },
+  title: { fontSize: 28, fontWeight: '700', color: theme.text },
+  subtitle: { fontSize: 14, color: theme.textMuted, marginTop: 2 },
 });

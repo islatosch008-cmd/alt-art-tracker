@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { theme } from '@/lib/theme';
 import type { Brand } from '@/lib/use-brands';
 
 type Props = {
@@ -104,17 +105,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#f2f2f2',
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: '#e5e5e5',
+    borderColor: theme.border,
   },
   buttonActive: {
-    backgroundColor: '#111',
-    borderColor: '#111',
+    backgroundColor: theme.accentDefault,
+    borderColor: theme.accentDefault,
   },
   buttonText: {
     fontSize: 13,
-    color: '#333',
+    color: theme.textMuted,
     fontWeight: '600',
   },
   buttonTextActive: {
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
 
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -132,20 +133,22 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 360,
     maxHeight: '80%',
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
     paddingVertical: 12,
     paddingHorizontal: 12,
     // Subtle elevation so the sheet reads above the backdrop on web/native.
     shadowColor: '#000',
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.5,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
   sheetTitle: {
     fontSize: 12,
-    color: '#888',
+    color: theme.textMuted,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -161,17 +164,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     marginBottom: 4,
-    backgroundColor: '#f2f2f2',
+    backgroundColor: theme.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#e5e5e5',
+    borderColor: theme.border,
   },
   optionActive: {
-    backgroundColor: '#111',
-    borderColor: '#111',
+    backgroundColor: theme.accentDefault,
+    borderColor: theme.accentDefault,
   },
   optionText: {
     fontSize: 14,
-    color: '#333',
+    color: theme.text,
     fontWeight: '600',
   },
   optionTextActive: {

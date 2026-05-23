@@ -6,6 +6,7 @@ export type ReleaseSet = {
   id: string;
   name: string;
   brand_id: string;
+  box_type: string | null;
   release_date: string | null;
   pre_order_opens_at: string | null;
 };
@@ -16,7 +17,7 @@ export function useReleases() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sets')
-        .select('id, name, brand_id, release_date, pre_order_opens_at')
+        .select('id, name, brand_id, box_type, release_date, pre_order_opens_at')
         .order('release_date', { ascending: false, nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as ReleaseSet[];

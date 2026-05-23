@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { formatUsd } from '@/lib/money';
+import { theme } from '@/lib/theme';
 import { useCard } from '@/lib/use-card';
 
 const HERO_BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
@@ -228,9 +229,9 @@ function Badge({
   children: React.ReactNode;
 }) {
   const palette = {
-    amber: { bg: '#fef3c7', fg: '#92400e' },
-    slate: { bg: '#f1f5f9', fg: '#475569' },
-    green: { bg: '#dcfce7', fg: '#166534' },
+    amber: { bg: 'rgba(255, 209, 0, 0.16)', fg: '#FFD000' },
+    slate: { bg: 'rgba(138, 147, 166, 0.18)', fg: '#B6BECC' },
+    green: { bg: 'rgba(61, 220, 132, 0.16)', fg: '#3DDC84' },
   }[color];
   return (
     <View style={[styles.badge, { backgroundColor: palette.bg }]}>
@@ -257,31 +258,31 @@ function popularityHint(score: number): string {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: theme.bg },
   content: { paddingBottom: 40 },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.bg,
   },
-  errorText: { color: '#c00', fontSize: 14 },
+  errorText: { color: theme.danger, fontSize: 14 },
 
   heroWrap: {
-    backgroundColor: '#fafafa',
+    backgroundColor: theme.surface,
     paddingVertical: 28,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: theme.border,
   },
   hero: {
     width: 240,
     aspectRatio: 5 / 7,
     borderRadius: 12,
-    backgroundColor: '#eee',
+    backgroundColor: theme.surfaceAlt,
     // boxShadow works cross-platform on RN 0.76+ and silences the
     // shadow* deprecation warning on web.
-    boxShadow: '0 12px 24px rgba(0, 0, 0, 0.18)',
+    boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5)',
   },
   heroInner: {
     width: '100%',
@@ -299,11 +300,11 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111',
+    color: theme.text,
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
+    color: theme.textMuted,
     marginTop: 2,
   },
   badgeRow: {
@@ -327,11 +328,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderTopWidth: 1,
-    borderTopColor: '#f5f5f5',
+    borderTopColor: theme.border,
   },
   statLabel: {
     fontSize: 12,
-    color: '#888',
+    color: theme.textMuted,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -339,7 +340,7 @@ const styles = StyleSheet.create({
   },
   statHint: {
     fontSize: 11,
-    color: '#999',
+    color: theme.textFaint,
     marginTop: 6,
     fontStyle: 'italic',
   },
@@ -348,60 +349,60 @@ const styles = StyleSheet.create({
   scoreNumber: {
     fontSize: 30,
     fontWeight: '700',
-    color: '#111',
+    color: theme.text,
     fontVariant: ['tabular-nums'],
   },
-  scoreOutOf: { fontSize: 14, color: '#888' },
+  scoreOutOf: { fontSize: 14, color: theme.textMuted },
   barTrack: {
     height: 6,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.surfaceAlt,
     borderRadius: 999,
     marginTop: 8,
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
-    backgroundColor: '#111',
+    backgroundColor: theme.accentDefault,
     borderRadius: 999,
   },
 
   priceNumber: {
     fontSize: 30,
     fontWeight: '700',
-    color: '#111',
+    color: theme.text,
     fontVariant: ['tabular-nums'],
   },
   priceTable: {
     marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: theme.border,
   },
   pricePending: {
     marginTop: 4,
     paddingVertical: 16,
     paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: '#fafafa',
+    backgroundColor: theme.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: theme.border,
     borderStyle: 'dashed',
     gap: 4,
   },
   pricePendingTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#444',
+    color: theme.text,
   },
   pricePendingSub: {
     fontSize: 12,
-    color: '#888',
+    color: theme.textMuted,
   },
   priceTableRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
+    borderBottomColor: theme.border,
   },
   priceTableLabelCol: {
     flex: 1,
@@ -409,7 +410,7 @@ const styles = StyleSheet.create({
   },
   priceTableLabel: {
     fontSize: 13,
-    color: '#444',
+    color: theme.textMuted,
   },
   tagPill: {
     alignSelf: 'flex-start',
@@ -417,40 +418,40 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 3,
   },
-  tagLive: { backgroundColor: '#dcfce7' },
-  tagEst: { backgroundColor: '#fef3c7' },
-  tagPlaceholder: { backgroundColor: '#f1f5f9' },
+  tagLive: { backgroundColor: 'rgba(61, 220, 132, 0.16)' },
+  tagEst: { backgroundColor: 'rgba(255, 209, 0, 0.16)' },
+  tagPlaceholder: { backgroundColor: 'rgba(138, 147, 166, 0.18)' },
   tagText: {
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
-    color: '#374151',
+    color: theme.textMuted,
   },
   priceTableValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#111',
+    color: theme.text,
     fontVariant: ['tabular-nums'],
   },
 
   chartPlaceholder: {
     height: 120,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: theme.border,
     borderStyle: 'dashed',
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fafafa',
+    backgroundColor: theme.surfaceAlt,
   },
   chartPlaceholderText: {
-    color: '#aaa',
+    color: theme.textFaint,
     fontSize: 13,
   },
 
-  metaValue: { fontSize: 16, fontWeight: '600', color: '#111' },
-  metaSub: { fontSize: 12, color: '#888', marginTop: 2 },
+  metaValue: { fontSize: 16, fontWeight: '600', color: theme.text },
+  metaSub: { fontSize: 12, color: theme.textMuted, marginTop: 2 },
 
   buyRow: {
     flexDirection: 'row',
@@ -463,19 +464,19 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
-    backgroundColor: '#111',
+    backgroundColor: theme.accentDefault,
   },
   buyDisabled: {
-    backgroundColor: '#ddd',
+    backgroundColor: theme.surfaceHover,
   },
   buyText: {
-    color: '#fff',
+    color: theme.textMuted,
     fontSize: 14,
     fontWeight: '600',
   },
   disclosure: {
     fontSize: 11,
-    color: '#aaa',
+    color: theme.textFaint,
     fontStyle: 'italic',
     paddingHorizontal: 24,
     paddingTop: 10,

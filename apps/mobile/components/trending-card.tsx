@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatUsd } from '@/lib/money';
+import { theme } from '@/lib/theme';
 import type { TrendingCard } from '@/lib/use-trending';
 
 const BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
@@ -93,16 +94,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f2f2f2',
+    borderBottomColor: theme.border,
     alignItems: 'center',
   },
-  rowPressed: { backgroundColor: '#f7f7f7' },
-  chevron: { fontSize: 24, color: '#ccc', fontWeight: '300' },
+  rowPressed: { backgroundColor: theme.surfaceHover },
+  chevron: { fontSize: 24, color: theme.textFaint, fontWeight: '300' },
   image: {
     width: 60,
     height: 84,
     borderRadius: 6,
-    backgroundColor: '#eee',
+    backgroundColor: theme.surfaceAlt,
   },
   body: {
     flex: 1,
@@ -111,11 +112,11 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#111',
+    color: theme.text,
   },
   meta: {
     fontSize: 12,
-    color: '#666',
+    color: theme.textMuted,
   },
   row2: {
     flexDirection: 'row',
@@ -127,34 +128,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
-    backgroundColor: '#fef3c7',
+    backgroundColor: 'rgba(255, 209, 0, 0.16)',
   },
   badgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#92400e',
+    color: '#FFD000',
   },
   score: {
     fontSize: 12,
-    color: '#888',
+    color: theme.textMuted,
     fontVariant: ['tabular-nums'],
   },
   reason: {
     fontSize: 11,
-    color: '#888',
+    color: theme.textMuted,
     marginTop: 2,
     fontVariant: ['tabular-nums'],
   },
   reasonUp: {
-    color: '#16a34a',
+    color: theme.success,
     fontWeight: '600',
   },
   reasonDown: {
-    color: '#dc2626',
+    color: theme.danger,
     fontWeight: '600',
   },
   reasonFlat: {
-    color: '#888',
+    color: theme.textMuted,
     fontWeight: '600',
   },
   priceCol: {
@@ -165,20 +166,20 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#111',
+    color: theme.text,
     fontVariant: ['tabular-nums'],
   },
   priceLabel: {
     fontSize: 9,
     fontWeight: '600',
-    color: '#aaa',
+    color: theme.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   priceMissing: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#aaa',
+    color: theme.textFaint,
     fontStyle: 'italic',
   },
 });

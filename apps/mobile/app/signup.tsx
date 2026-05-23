@@ -13,6 +13,7 @@ import {
 
 import { useAuth } from '@/lib/auth';
 import { normalizeUSPhone } from '@/lib/phone-format';
+import { theme } from '@/lib/theme';
 
 export default function SignupScreen() {
   const { signUp, resendConfirmation } = useAuth();
@@ -204,7 +205,7 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.bg,
   },
   inner: {
     flex: 1,
@@ -217,21 +218,22 @@ const styles = StyleSheet.create({
   brand: {
     fontSize: 28,
     fontWeight: '800',
+    color: theme.text,
     marginBottom: 4,
   },
   tagline: {
     fontSize: 14,
-    color: '#666',
+    color: theme.textMuted,
     marginBottom: 24,
   },
   body: {
     fontSize: 15,
-    color: '#444',
+    color: theme.textMuted,
     lineHeight: 22,
     marginBottom: 8,
   },
   success: {
-    color: '#0a7d28',
+    color: theme.success,
     fontSize: 13,
     marginTop: 12,
   },
@@ -239,26 +241,27 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
     marginTop: 10,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.borderStrong,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    backgroundColor: '#fafafa',
+    color: theme.text,
+    backgroundColor: theme.surface,
   },
   hint: {
     fontSize: 11,
-    color: '#888',
+    color: theme.textMuted,
     marginTop: 4,
   },
   primaryButton: {
     marginTop: 20,
-    backgroundColor: '#111',
+    backgroundColor: theme.accentDefault,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
@@ -270,7 +273,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   error: {
-    color: '#c00',
+    color: theme.danger,
     fontSize: 13,
     marginTop: 12,
   },
@@ -279,6 +282,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  footerText: { fontSize: 14, color: '#666' },
-  link: { color: '#0066cc', fontSize: 14, fontWeight: '600' },
+  footerText: { fontSize: 14, color: theme.textMuted },
+  link: { color: theme.accentDefault, fontSize: 14, fontWeight: '600' },
 });

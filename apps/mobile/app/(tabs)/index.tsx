@@ -12,6 +12,7 @@ import { BrandFilter } from '@/components/brand-filter';
 import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
 import { TrendingCardCell } from '@/components/trending-card-cell';
+import { theme } from '@/lib/theme';
 import { useBrands } from '@/lib/use-brands';
 import { useGridCols } from '@/lib/use-grid-cols';
 import { useTrendingCards } from '@/lib/use-trending';
@@ -77,12 +78,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-  errorText: { color: '#c00', fontSize: 14, textAlign: 'center' },
-  emptyText: { color: '#999', fontSize: 14 },
+  errorText: { color: theme.danger, fontSize: 14, textAlign: 'center' },
+  emptyText: { color: theme.textMuted, fontSize: 14 },
   gridContent: { paddingHorizontal: 12, paddingTop: 4 },
   gridRow: { gap: 8, marginBottom: 8 },
   footer: {
-    color: '#aaa',
+    color: theme.textFaint,
     fontSize: 11,
     fontStyle: 'italic',
     textAlign: 'center',

@@ -3,16 +3,21 @@ import React from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { theme } from '@/lib/theme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        // Dark game-styled tab bar: neon accent for the active tab, muted
+        // light icons otherwise, on a dark surface with a subtle top border.
+        tabBarActiveTintColor: theme.accentDefault,
+        tabBarInactiveTintColor: theme.textMuted,
+        tabBarStyle: {
+          backgroundColor: theme.surface,
+          borderTopColor: theme.border,
+          borderTopWidth: 1,
+        },
         // Hidden — each tab renders its own ScreenHeader so we don't get
         // a duplicate title (nav header + in-page title were both showing).
         headerShown: false,

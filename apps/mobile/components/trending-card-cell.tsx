@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatUsd } from '@/lib/money';
+import { theme } from '@/lib/theme';
 import type { TrendingCard } from '@/lib/use-trending';
 
 const BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
@@ -101,9 +102,11 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 12,
     borderRadius: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
-  cellPressed: { backgroundColor: '#f7f7f7' },
+  cellPressed: { backgroundColor: theme.surfaceHover },
   imageWrap: {
     width: '100%',
     aspectRatio: 5 / 7,
@@ -112,7 +115,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.surfaceAlt,
   },
   image: {
     width: '100%',
@@ -121,12 +124,12 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#111',
+    color: theme.text,
     paddingHorizontal: 4,
   },
   meta: {
     fontSize: 11,
-    color: '#777',
+    color: theme.textMuted,
     marginTop: 2,
     paddingHorizontal: 4,
   },
@@ -140,39 +143,39 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111',
+    color: theme.text,
     fontVariant: ['tabular-nums'],
   },
   priceLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#999',
+    color: theme.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   priceMissing: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#aaa',
+    color: theme.textFaint,
     fontStyle: 'italic',
   },
   reason: {
     fontSize: 11,
-    color: '#888',
+    color: theme.textMuted,
     marginTop: 4,
     paddingHorizontal: 4,
     fontVariant: ['tabular-nums'],
   },
   reasonUp: {
-    color: '#16a34a',
+    color: theme.success,
     fontWeight: '700',
   },
   reasonDown: {
-    color: '#dc2626',
+    color: theme.danger,
     fontWeight: '700',
   },
   reasonFlat: {
-    color: '#888',
+    color: theme.textMuted,
     fontWeight: '700',
   },
   bottomRow: {
@@ -188,16 +191,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    backgroundColor: '#fef3c7',
+    backgroundColor: 'rgba(255, 209, 0, 0.16)',
   },
   badgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#92400e',
+    color: '#FFD000',
   },
   score: {
     fontSize: 11,
-    color: '#888',
+    color: theme.textMuted,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },

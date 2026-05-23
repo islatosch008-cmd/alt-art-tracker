@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '@/lib/auth';
+import { theme } from '@/lib/theme';
 
 function isUnconfirmedEmailError(message: string): boolean {
   const lower = message.toLowerCase();
@@ -115,7 +116,7 @@ export default function LoginScreen() {
               disabled={resending}
               onPress={onResend}>
               {resending ? (
-                <ActivityIndicator color="#111" />
+                <ActivityIndicator color={theme.text} />
               ) : (
                 <Text style={styles.secondaryButtonText}>Resend verification email</Text>
               )}
@@ -137,7 +138,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.bg,
   },
   inner: {
     flex: 1,
@@ -150,11 +151,12 @@ const styles = StyleSheet.create({
   brand: {
     fontSize: 32,
     fontWeight: '800',
+    color: theme.text,
     marginBottom: 4,
   },
   tagline: {
     fontSize: 16,
-    color: '#666',
+    color: theme.textMuted,
     marginBottom: 32,
   },
   form: {
@@ -163,21 +165,22 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
     marginTop: 12,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: theme.borderStrong,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    backgroundColor: '#fafafa',
+    color: theme.text,
+    backgroundColor: theme.surface,
   },
   primaryButton: {
     marginTop: 20,
-    backgroundColor: '#111',
+    backgroundColor: theme.accentDefault,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
@@ -191,23 +194,23 @@ const styles = StyleSheet.create({
   secondaryButton: {
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#111',
+    borderColor: theme.borderStrong,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
   },
   secondaryButtonText: {
-    color: '#111',
+    color: theme.text,
     fontSize: 16,
     fontWeight: '600',
   },
   error: {
-    color: '#c00',
+    color: theme.danger,
     fontSize: 13,
     marginTop: 12,
   },
   success: {
-    color: '#0a7d28',
+    color: theme.success,
     fontSize: 13,
     marginTop: 12,
   },
@@ -218,10 +221,10 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#666',
+    color: theme.textMuted,
   },
   link: {
-    color: '#0066cc',
+    color: theme.accentDefault,
     fontSize: 14,
     fontWeight: '600',
   },

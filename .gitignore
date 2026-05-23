@@ -7,6 +7,9 @@
 
 # Netlify CLI local state (created by deploys)
 .netlify
+
+# One-off generated artifact (art-generation list)
+set-art-generation-list.csv
 .env.development
 .env.production
 .env.save
