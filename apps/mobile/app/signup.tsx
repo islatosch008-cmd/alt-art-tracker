@@ -15,13 +15,16 @@ import { useAuth } from '@/lib/auth';
 import { normalizeUSPhone } from '@/lib/phone-format';
 
 export default function SignupScreen() {
-  const { signUp } = useAuth();
+  const { signUp, resendConfirmation } = useAuth();
   const [inviteCode, setInviteCode] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
 
   const onSubmit = async () => {
     setError(null);
@@ -34,20 +37,80 @@ export default function SignupScreen() {
       }
       normalizedPhone = n;
     }
+    const trimmedEmail = email.trim();
     setBusy(true);
-    const { error: err } = await signUp({
-      email: email.trim(),
+    const { error: err, needsEmailConfirmation } = await signUp({
+      email: trimmedEmail,
       password,
       inviteCode,
       phoneNumber: normalizedPhone,
     });
     setBusy(false);
-    if (err) setError(err);
-    // success: AuthGate redirects to /(tabs) automatically
+    if (err) {
+      setError(err);
+      return;
+    }
+    if (needsEmailConfirmation) {
+      // Email confirmation is enabled: no session yet. Show the verify panel.
+      setConfirmEmail(trimmedEmail);
+      return;
+    }
+    // confirmation disabled: a session exists, AuthGate redirects to /(tabs) automatically
+  };
+
+  const onResend = async () => {
+    if (!confirmEmail) return;
+    setError(null);
+    setResent(false);
+    setResending(true);
+    const { error: err } = await resendConfirmation(confirmEmail);
+    setResending(false);
+    if (err) {
+      setError(err);
+      return;
+    }
+    setResent(true);
   };
 
   const disabled =
     busy || inviteCode.length === 0 || email.length === 0 || password.length < 12;
+
+  if (confirmEmail) {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.container}>
+        <View style={styles.inner}>
+          <Text style={styles.brand}>Check your email</Text>
+          <Text style={styles.body}>
+            We sent a verification link to {confirmEmail}. Click it to confirm your account, then
+            sign in.
+          </Text>
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {resent ? <Text style={styles.success}>Verification email sent.</Text> : null}
+
+          <Pressable
+            style={[styles.primaryButton, resending && styles.disabled]}
+            disabled={resending}
+            onPress={onResend}>
+            {resending ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Resend email</Text>
+            )}
+          </Pressable>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Already confirmed?</Text>
+            <Link href="/login" style={styles.link}>
+              Sign in
+            </Link>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -160,6 +223,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 24,
+  },
+  body: {
+    fontSize: 15,
+    color: '#444',
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  success: {
+    color: '#0a7d28',
+    fontSize: 13,
+    marginTop: 12,
   },
   form: { gap: 8 },
   label: {

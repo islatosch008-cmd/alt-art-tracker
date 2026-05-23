@@ -9,9 +9,16 @@ export type AuthState = {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (input: SignUpInput) => Promise<{ error?: string }>;
+  signUp: (input: SignUpInput) => Promise<{ error?: string; needsEmailConfirmation?: boolean }>;
+  resendConfirmation: (email: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
 };
+
+// Where Supabase should send the user after they click the confirmation link.
+// On web we return them to the current origin. On native this needs a deep link
+// (e.g. an app scheme via Linking.createURL) — leave undefined until Phase 3.
+const emailRedirectTo =
+  typeof window !== 'undefined' ? window.location.origin : undefined;
 
 export type SignUpInput = {
   email: string;
@@ -54,15 +61,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error: `This password has appeared in ${breachCount.toLocaleString()} known breaches. Pick a different one.`,
       };
     }
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo,
         data: {
           invite_code: inviteCode.trim(),
           phone_number: phoneNumber?.trim() || null,
         },
       },
+    });
+    if (error) return { error: error.message };
+    // When email confirmation is enabled, Supabase returns a user but no session.
+    // When it's disabled, a session is created and AuthGate redirects automatically.
+    return { needsEmailConfirmation: !data.session && !!data.user };
+  };
+
+  const resendConfirmation: AuthState['resendConfirmation'] = async (email) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo },
     });
     return error ? { error: error.message } : {};
   };
@@ -73,7 +93,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, loading, signIn, signUp, signOut }}>
+      value={{
+        session,
+        user: session?.user ?? null,
+        loading,
+        signIn,
+        signUp,
+        resendConfirmation,
+        signOut,
+      }}>
       {children}
     </AuthContext.Provider>
   );

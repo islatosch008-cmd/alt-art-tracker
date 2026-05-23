@@ -13,19 +13,49 @@ import {
 
 import { useAuth } from '@/lib/auth';
 
+function isUnconfirmedEmailError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes('email not confirmed') || lower.includes('email_not_confirmed');
+}
+
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, resendConfirmation } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
 
   const onSubmit = async () => {
     setError(null);
+    setUnconfirmed(false);
+    setResent(false);
     setBusy(true);
     const { error: err } = await signIn(email.trim(), password);
     setBusy(false);
-    if (err) setError(err);
+    if (err) {
+      if (isUnconfirmedEmailError(err)) {
+        setUnconfirmed(true);
+        setError("Your email isn't verified yet — check your inbox for the link.");
+      } else {
+        setError(err);
+      }
+    }
+  };
+
+  const onResend = async () => {
+    setError(null);
+    setResent(false);
+    setResending(true);
+    const { error: err } = await resendConfirmation(email.trim());
+    setResending(false);
+    if (err) {
+      setError(err);
+      return;
+    }
+    setResent(true);
   };
 
   const disabled = busy || email.length === 0 || password.length === 0;
@@ -66,6 +96,7 @@ export default function LoginScreen() {
           />
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
+          {resent ? <Text style={styles.success}>Verification email sent.</Text> : null}
 
           <Pressable
             style={[styles.primaryButton, disabled && styles.disabled]}
@@ -77,6 +108,19 @@ export default function LoginScreen() {
               <Text style={styles.primaryButtonText}>Sign in</Text>
             )}
           </Pressable>
+
+          {unconfirmed ? (
+            <Pressable
+              style={[styles.secondaryButton, resending && styles.disabled]}
+              disabled={resending}
+              onPress={onResend}>
+              {resending ? (
+                <ActivityIndicator color="#111" />
+              ) : (
+                <Text style={styles.secondaryButtonText}>Resend verification email</Text>
+              )}
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.footer}>
@@ -144,8 +188,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  secondaryButton: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#111',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    color: '#111',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   error: {
     color: '#c00',
+    fontSize: 13,
+    marginTop: 12,
+  },
+  success: {
+    color: '#0a7d28',
     fontSize: 13,
     marginTop: 12,
   },
