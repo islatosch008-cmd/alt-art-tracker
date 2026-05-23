@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   RefreshControl,
   SectionList,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
 import { BrandChips } from '@/components/brand-chips';
 import { PageShell } from '@/components/page-shell';
 import { ScreenHeader } from '@/components/screen-header';
+import { addToCalendar } from '@/lib/calendar';
 import { useBrands } from '@/lib/use-brands';
 import {
   daysUntil,
@@ -18,6 +20,15 @@ import {
   type ReleaseSet,
   useReleases,
 } from '@/lib/use-releases';
+
+// Compact "Mon D, YYYY" used inside the calendar chooser labels.
+function shortDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
 
 export default function ReleasesScreen() {
   const { data, isLoading, isRefetching, error, refetch } = useReleases();
@@ -123,6 +134,47 @@ function ReleaseRow({ set }: { set: ReleaseSet }) {
     else relative = `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago`;
   }
 
+  const hasPreOrder = !!set.pre_order_opens_at;
+  const hasRelease = !!set.release_date;
+  const hasAnyDate = hasPreOrder || hasRelease;
+  const hasBothDates = hasPreOrder && hasRelease;
+
+  // Only relevant for the both-dates case: toggles the inline chooser.
+  const [chooserOpen, setChooserOpen] = useState(false);
+
+  function addPreOrder() {
+    if (!set.pre_order_opens_at) return;
+    addToCalendar({
+      uid: `${set.id}-preorder@altarttracker`,
+      title: `${set.name} — pre-orders open`,
+      date: set.pre_order_opens_at,
+      description: `Alt Art Tracker reminder · ${set.name}`,
+    });
+    setChooserOpen(false);
+  }
+
+  function addRelease() {
+    if (!set.release_date) return;
+    addToCalendar({
+      uid: `${set.id}-release@altarttracker`,
+      title: `${set.name} — releases`,
+      date: set.release_date,
+      description: `Alt Art Tracker reminder · ${set.name}`,
+    });
+    setChooserOpen(false);
+  }
+
+  // Single-date drops add directly; both-date drops toggle the chooser.
+  function onCalendarPress() {
+    if (hasBothDates) {
+      setChooserOpen((open) => !open);
+    } else if (hasPreOrder) {
+      addPreOrder();
+    } else {
+      addRelease();
+    }
+  }
+
   return (
     <View style={styles.row}>
       <View style={styles.body}>
@@ -133,9 +185,54 @@ function ReleaseRow({ set }: { set: ReleaseSet }) {
           {releaseLabel}
           {relative ? ` · ${relative}` : ''}
         </Text>
+
+        {hasBothDates && chooserOpen ? (
+          <View style={styles.chooser}>
+            <Pressable
+              style={styles.chooserItem}
+              onPress={addPreOrder}
+              accessibilityRole="button"
+              accessibilityLabel={`Add pre-order open date for ${set.name} to calendar`}
+            >
+              <Text style={styles.chooserItemText}>
+                Pre-orders open ({shortDate(set.pre_order_opens_at!)})
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.chooserItem}
+              onPress={addRelease}
+              accessibilityRole="button"
+              accessibilityLabel={`Add release date for ${set.name} to calendar`}
+            >
+              <Text style={styles.chooserItemText}>
+                Releases ({shortDate(set.release_date!)})
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
-      <View style={styles.brandBadge}>
-        <Text style={styles.brandBadgeText}>{set.brand_id}</Text>
+
+      <View style={styles.trailing}>
+        {hasAnyDate ? (
+          <Pressable
+            style={[styles.calButton, chooserOpen && styles.calButtonActive]}
+            onPress={onCalendarPress}
+            accessibilityRole="button"
+            accessibilityLabel={`Add ${set.name} to calendar`}
+          >
+            <Text
+              style={[
+                styles.calButtonText,
+                chooserOpen && styles.calButtonTextActive,
+              ]}
+            >
+              + Calendar
+            </Text>
+          </Pressable>
+        ) : null}
+        <View style={styles.brandBadge}>
+          <Text style={styles.brandBadgeText}>{set.brand_id}</Text>
+        </View>
       </View>
     </View>
   );
@@ -177,6 +274,51 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   name: { fontSize: 16, fontWeight: '600', color: '#111' },
   meta: { fontSize: 13, color: '#666', marginTop: 2 },
+
+  trailing: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  calButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#f2f2f2',
+    borderWidth: 1,
+    borderColor: '#e5e5e5',
+  },
+  calButtonActive: {
+    backgroundColor: '#111',
+    borderColor: '#111',
+  },
+  calButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+  },
+  calButtonTextActive: {
+    color: '#fff',
+  },
+
+  chooser: {
+    marginTop: 8,
+    gap: 6,
+    alignItems: 'flex-start',
+  },
+  chooserItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e5e5e5',
+  },
+  chooserItemText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+
   brandBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
