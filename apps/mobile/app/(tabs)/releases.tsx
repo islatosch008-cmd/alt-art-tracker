@@ -426,14 +426,21 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.5,
+    // Black outline so the white code stays legible over any artwork.
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   typeLabel: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#9FB0C7',
+    color: '#E6ECF5',
     letterSpacing: 1.1,
     textTransform: 'uppercase',
     marginTop: 3,
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   // Vertical accent seam on the cell's right edge against the white body.
   artSeam: {
