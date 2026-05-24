@@ -1,8 +1,8 @@
 // Daily cron — find sets whose pre_order_opens_at is exactly today+30/7/1/0
-// days out, enqueue one SMS drop_tN notification per matching subscriber,
+// days out, enqueue one email drop_tN notification per matching subscriber,
 // dedup via drop_alerts_sent.
 //
-// 2.0 is SMS-only: exactly one channel:'sms' row per subscriber per alert.
+// 2.0 sends by email: exactly one channel:'email' row per subscriber per alert.
 //
 // Mirrors check-release-alerts but on pre_order_opens_at + drop_alert_days
 // + drop_alerts_sent. The two run side-by-side: a set with both fields
@@ -87,7 +87,7 @@ Deno.serve(
             continue;
           }
 
-          // 2.0 is SMS-only — enqueue exactly one sms row per subscriber.
+          // 2.0 sends by email — enqueue exactly one email row per subscriber.
           const payload = {
             set_id: set.id,
             set_name: set.name,
@@ -99,7 +99,7 @@ Deno.serve(
             user_id: sub.user_id,
             type: `drop_${alertType}`,
             payload,
-            channel: 'sms',
+            channel: 'email',
           });
           if (enqErr) {
             console.warn(`drop enqueue failed for ${sub.user_id}/${set.id}: ${enqErr.message}`);

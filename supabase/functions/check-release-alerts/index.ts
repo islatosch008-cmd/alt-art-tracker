@@ -1,8 +1,8 @@
 // Hourly cron — find sets whose release_date is exactly today+30/7/1/0 days
-// out, and for each subscriber whose preferences match, enqueue one SMS
+// out, and for each subscriber whose preferences match, enqueue one email
 // release_tN notification. Idempotent via release_alerts_sent.
 //
-// 2.0 is SMS-only: exactly one channel:'sms' row per subscriber per alert.
+// 2.0 sends by email: exactly one channel:'email' row per subscriber per alert.
 //
 // Subscriber match rules (per spec):
 // * user_preferences.release_alerts_enabled = true
@@ -85,7 +85,7 @@ Deno.serve(withSentry('check-release-alerts', async (req) => {
           continue;
         }
 
-        // 2.0 is SMS-only — enqueue exactly one sms row per subscriber.
+        // 2.0 sends by email — enqueue exactly one email row per subscriber.
         const payload = {
           set_id: set.id,
           set_name: set.name,
@@ -96,7 +96,7 @@ Deno.serve(withSentry('check-release-alerts', async (req) => {
           user_id: sub.user_id,
           type: `release_${alertType}`,
           payload,
-          channel: 'sms',
+          channel: 'email',
         });
         if (enqErr) {
           console.warn(`enqueue failed for ${sub.user_id}/${set.id}: ${enqErr.message}`);

@@ -856,6 +856,7 @@ export type Database = {
           brands: string[] | null
           categories: string[] | null
           drop_alerts_enabled: boolean | null
+          email_enabled: boolean
           heating_up_alerts_enabled: boolean | null
           quiet_hours_end: string | null
           quiet_hours_start: string | null
@@ -873,6 +874,7 @@ export type Database = {
           brands?: string[] | null
           categories?: string[] | null
           drop_alerts_enabled?: boolean | null
+          email_enabled?: boolean
           heating_up_alerts_enabled?: boolean | null
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
@@ -890,6 +892,7 @@ export type Database = {
           brands?: string[] | null
           categories?: string[] | null
           drop_alerts_enabled?: boolean | null
+          email_enabled?: boolean
           heating_up_alerts_enabled?: boolean | null
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null

@@ -7,12 +7,12 @@ import { supabase } from './supabase';
 // The row itself is created by a signup trigger — clients only ever update it.
 export type Preferences = {
   user_id: string;
-  sms_enabled: boolean;
+  email_enabled: boolean;
   drop_alerts_enabled: boolean;
   release_alerts_enabled: boolean;
 };
 
-const COLUMNS = 'user_id, sms_enabled, drop_alerts_enabled, release_alerts_enabled';
+const COLUMNS = 'user_id, email_enabled, drop_alerts_enabled, release_alerts_enabled';
 
 export function usePreferences() {
   const { user } = useAuth();

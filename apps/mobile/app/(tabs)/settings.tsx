@@ -187,7 +187,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>SMS notifications</Text>
+          <Text style={styles.cardLabel}>Email notifications</Text>
           {prefsLoading ? (
             <ActivityIndicator />
           ) : !prefs ? (
@@ -195,24 +195,24 @@ export default function SettingsScreen() {
           ) : (
             <View style={{ marginTop: 4 }}>
               <ToggleRow
-                label="SMS notifications"
-                hint="Master switch for all text alerts."
-                value={prefs.sms_enabled}
+                label="Email notifications"
+                hint="Master switch for all email alerts."
+                value={prefs.email_enabled}
                 disabled={updatePrefs.isPending}
-                onChange={(v) => updatePrefs.mutate({ sms_enabled: v })}
+                onChange={(v) => updatePrefs.mutate({ email_enabled: v })}
               />
               <ToggleRow
                 label="Drop reminders"
-                hint="Texts before a pre-order window opens."
+                hint="Emails before a pre-order window opens."
                 value={prefs.drop_alerts_enabled}
-                disabled={updatePrefs.isPending || !prefs.sms_enabled}
+                disabled={updatePrefs.isPending || !prefs.email_enabled}
                 onChange={(v) => updatePrefs.mutate({ drop_alerts_enabled: v })}
               />
               <ToggleRow
                 label="Release reminders"
-                hint="Texts before a set's release date."
+                hint="Emails before a set's release date."
                 value={prefs.release_alerts_enabled}
-                disabled={updatePrefs.isPending || !prefs.sms_enabled}
+                disabled={updatePrefs.isPending || !prefs.email_enabled}
                 onChange={(v) => updatePrefs.mutate({ release_alerts_enabled: v })}
                 last
               />
