@@ -10,9 +10,11 @@
 //   1. Reads a DAILY_REQUEST_CEILING budget guard — counts today's
 //      JustTCG POST /cards calls already logged to api_request_log and
 //      stops before the 100/day free-tier limit.
-//   2. Selects a ROTATING slice of the catalog ordered by
-//      last_justtcg_fetch_at ASC NULLS FIRST, so every card is revisited
-//      eventually and never-fetched cards are prioritised.
+//   2. Selects a PRIORITISED slice of the catalog: set release_date DESC
+//      NULLS LAST first (newest / upcoming sets — the cards that show in
+//      Trending / Upcoming get priced first), then last_justtcg_fetch_at
+//      ASC NULLS FIRST within that, so the rotation still advances and
+//      every card is revisited eventually.
 //   3. Batches that slice into JUSTTCG_BATCH_SIZE chunks; each chunk is
 //      one POST /cards request.
 //   4. On HTTP 429 (per-minute limit) stops the run cleanly — does not
@@ -71,6 +73,12 @@ type CardRow = {
   justtcg_card_id: string | null;
   external_ids: Record<string, unknown> | null;
 };
+
+// The select also embeds sets!inner(release_date) so we can prioritise by
+// set recency at the DB layer (see SELECT below). The embed is to-one, so
+// supabase-js returns it as an object (or null if the foreign row is
+// missing — impossible here because of !inner). We only read release_date
+// for ordering and otherwise ignore it, so it is not part of CardRow.
 
 // Pull the numeric tcgplayer id stashed by the tcgcsv importer, if any.
 function tcgplayerIdOf(card: CardRow): string | null {
@@ -190,13 +198,35 @@ Deno.serve(
       });
     }
 
-    // --- SELECT ROTATING CATALOG SLICE -----------------------------------
-    // Oldest last_justtcg_fetch_at first, NULLs first — never-fetched
-    // cards lead, then least-recently-refreshed. This rotates the whole
-    // catalog through over many runs.
+    // --- SELECT PRIORITISED CATALOG SLICE --------------------------------
+    // Price the cards that MATTER first. The catalog is ~23K cards but the
+    // free tier only allows ~2K lookups/day, so each run pulls the slice
+    // most worth pricing, ordered by:
+    //   1. PRIMARY  — the card's set release_date DESC, NULLS LAST. Cards
+    //      from the newest / upcoming sets come first; these are exactly
+    //      what surfaces in the Trending / Upcoming tabs. NULLS LAST keeps
+    //      undated sets behind real release dates.
+    //   2. SECONDARY — last_justtcg_fetch_at ASC, NULLS FIRST. Within a
+    //      release-date cohort, never-fetched cards lead, then the
+    //      least-recently-refreshed. This is the rotation cursor: it
+    //      deterministically advances so we don't re-fetch the same cards
+    //      every run and the cohort still cycles through over time.
+    //
+    // MECHANISM: we embed sets!inner(release_date) and order by the
+    // referenced column. PostgREST only lets a referenced-table column
+    // drive the PARENT row order when the embed is an INNER join — hence
+    // !inner (also correct semantically: a card with no set can't be
+    // prioritised by release_date, and every card here has a set_id FK).
+    // supabase-js v2's option key for ordering by an embedded column is
+    // `referencedTable`. The sets(release_date) embed is otherwise unused.
     const { data: cards, error: cardErr } = await admin
       .from('cards')
-      .select('id, name, justtcg_card_id, external_ids')
+      .select('id, name, justtcg_card_id, external_ids, sets!inner(release_date)')
+      .order('release_date', {
+        referencedTable: 'sets',
+        ascending: false,
+        nullsFirst: false,
+      })
       .order('last_justtcg_fetch_at', { ascending: true, nullsFirst: true })
       .limit(CARDS_PER_RUN);
     if (cardErr) {
